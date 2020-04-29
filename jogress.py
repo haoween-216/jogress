@@ -163,6 +163,7 @@ class HederaController(object):
             self.total_connection[ip] = 0
         self.memory = {}  # (srcip,dstip,srcport,dstport) -> MemoryEntry
         self._do_probe()  # Kick off the probing
+        self.outstanding_probes = {}  # IP -> expire_time
 
         # TODO: generalize all_switches_up to a more general state machine.
         self.all_switches_up = False  # Sequences event handling.
@@ -538,7 +539,11 @@ def launch(topo, ip, servers):
 
     topo is in format toponame,arg1,arg2,...
     """
-
+    # Boot up ARP Responder
+    from proto.arp_responder import launch as arp_launch
+    arp_launch(eat_packets=False, **{str(ip): True})
+    import logging
+    logging.getLogger("proto.arp_responder").setLevel(logging.WARN)
 
     # Instantiate a topo object from the passed-in file.
     if not topo:

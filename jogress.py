@@ -164,9 +164,11 @@ class HederaController(object):
             self.total_connection[ip] = 0
         self.memory = {}  # (srcip,dstip,srcport,dstport) -> MemoryEntry
         self.outstanding_probes = {}  # IP -> expire_time
+        # How quickly do we probe?
+        self.probe_cycle_time = 5
 
-
-
+        # How long do we wait for an ARP reply before we consider a server dead?
+        self.arp_timeout = 3
 
         # TODO: generalize all_switches_up to a more general state machine.
         self.all_switches_up = False  # Sequences event handling.

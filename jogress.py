@@ -58,7 +58,6 @@ class Switch(object):
         self.disconnect()
         log.debug("Connect %s" % (connection,))
         self.connection = connection
-        self.mac = self.connection.eth_addr
         self._listeners = connection.addListeners(self)
 
     def send_packet_data(self, outport, data=None):
@@ -158,6 +157,7 @@ class HederaController(object):
 
         self.service_ip = IPAddr(service_ip)
         self.servers = [IPAddr(a) for a in servers]
+
         self.live_servers = {}  # IP -> MAC,port
         self.total_connection = {}  # IP -> total connection
         for ip in servers:
@@ -335,12 +335,13 @@ class HederaController(object):
             if not val.is_expired:
                 self.memory[key] = val
 
-    def _do_probe(self):
+    def _do_probe(self, connection):
         """
         Send an ARP to a server to see if it's still up
         """
         self._do_expire()
-
+        self.con = connection
+        self.mac = self.con.eth_addr
         server = self.servers.pop(0)
         self.servers.append(server)
 
@@ -418,12 +419,12 @@ class HederaController(object):
                         # A server is (still?) up; cool.
                         del self.outstanding_probes[arpp.protosrc]
                         if (self.live_servers.get(arpp.protosrc, (None, None))
-                                == (arpp.hwsrc, inport)):
+                                == (arpp.hwsrc, in_port)):
                             # Ah, nothing new here.
                             pass
                         else:
                             # Ooh, new server.
-                            self.live_servers[arpp.protosrc] = arpp.hwsrc, inport
+                            self.live_servers[arpp.protosrc] = arpp.hwsrc, in_port
                             self.log.info("Server %s up", arpp.protosrc)
                 return
 
@@ -482,7 +483,7 @@ class HederaController(object):
             log.info("Saw PacketIn before all switches were up - ignoring.")
             return
         else:
-            self._do_probe()  # Kick off the probing
+            self._do_probe(event.connection)  # Kick off the probing
             self._handle_packet_reactive(event)
 
     def _get_links_from_path(self, path):

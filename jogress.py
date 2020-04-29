@@ -330,12 +330,7 @@ class HederaController(object):
         # log.info("PacketIn: %s" % packet)
         in_port = event.port
         t = self.t
-        def drop():
-            if event.ofp.buffer_id is not None:
-                # Kill the buffer
-                msg = of.ofp_packet_out(data=event.ofp)
-                self.con.send(msg)
-            return None
+        
 
         # Learn MAC address of the sender on every packet-in.
         self.macTable[packet.src] = (dpid, in_port)
@@ -360,10 +355,6 @@ class HederaController(object):
                             self.live_servers[arpp.protosrc] = arpp.hwsrc, in_port
                             self.log.info("Server %s up", arpp.protosrc)
                 return
-
-            # Not TCP and not ARP.  Don't know what to do with this.  Drop it.
-            return drop()
-
         ipp = packet.find('ipv4')
         if ipp.dstip == self.service_ip:
             # Ah, it's for our service IP and needs to be load balanced
@@ -376,7 +367,6 @@ class HederaController(object):
                 if len(self.live_servers) == 0:
                     self.log.warn("No servers!")
                     return drop()
-
                 # Pick a server for this flow
                 server = self._pick_server(key, in_port)
                 self.log.debug("Directing traffic to %s", server)
@@ -386,7 +376,6 @@ class HederaController(object):
 
                 # Increase total connection for that server
                 self.total_connection[server] += 1
-
             # Update timestamp
             entry.refresh()
 
@@ -416,7 +405,6 @@ class HederaController(object):
             log.info("Saw PacketIn before all switches were up - ignoring.")
             return
         else:
-
             self._handle_packet_reactive(event)
 
     def _get_links_from_path(self, path):

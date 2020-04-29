@@ -11,6 +11,8 @@ from pox.lib.packet.ipv4 import ipv4
 from pox.lib.packet.udp import udp
 from pox.lib.packet.tcp import tcp
 from pox.lib.addresses import IPAddr, EthAddr
+from pox.lib.packet.ethernet import ethernet, ETHER_BROADCAST
+from pox.lib.packet.arp import arp
 
 from ripllib.mn import topos
 
@@ -159,6 +161,8 @@ class HederaController(object):
         self.total_connection = {}  # IP -> total connection
         for ip in servers:
             self.total_connection[ip] = 0
+        self.memory = {}  # (srcip,dstip,srcport,dstport) -> MemoryEntry
+        self._do_probe()  # Kick off the probing
 
         # TODO: generalize all_switches_up to a more general state machine.
         self.all_switches_up = False  # Sequences event handling.
@@ -298,6 +302,73 @@ class HederaController(object):
                 # else:
                 self.switches[sw].send_packet_data(port, event.data)
                 #  buffer_id = None
+
+    def _do_expire(self):
+        """
+        Expire probes and "memorized" flows
+        Each of these should only have a limited lifetime.
+        """
+        t = time.time()
+
+        # Expire probes
+        for ip, expire_at in self.outstanding_probes.items():
+            if t > expire_at:
+                self.outstanding_probes.pop(ip, None)
+                if ip in self.live_servers:
+                    self.log.warn("Server %s down", ip)
+                    del self.live_servers[ip]
+
+        # Expire flow
+        memory = self.memory.copy()
+        self.memory.clear()
+        for key, val in memory.items():
+            ip = key[0]
+            if ip in self.live_servers and val.is_expired:
+                # Decrease total connection for that server
+                self.total_connection[ip] -= 1
+            if not val.is_expired:
+                self.memory[key] = val
+
+    def _do_probe(self):
+        """
+        Send an ARP to a server to see if it's still up
+        """
+        self._do_expire()
+
+        server = self.servers.pop(0)
+        self.servers.append(server)
+
+        r = arp()
+        r.hwtype = r.HW_TYPE_ETHERNET
+        r.prototype = r.PROTO_TYPE_IP
+        r.opcode = r.REQUEST
+        r.hwdst = ETHER_BROADCAST
+        r.protodst = server
+        r.hwsrc = self.mac
+        r.protosrc = self.service_ip
+        e = ethernet(type=ethernet.ARP_TYPE, src=self.mac,
+                     dst=ETHER_BROADCAST)
+        e.set_payload(r)
+        # self.log.debug("ARPing for %s", server)
+        msg = of.ofp_packet_out()
+        msg.data = e.pack()
+        msg.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
+        msg.in_port = of.OFPP_NONE
+        self.con.send(msg)
+
+        self.outstanding_probes[server] = time.time() + self.arp_timeout
+
+        core.callDelayed(self._probe_wait_time, self._do_probe)
+
+    @property
+    def _probe_wait_time(self):
+        """
+        Time to wait between probes
+        """
+        r = self.probe_cycle_time / float(len(self.servers))
+        r = max(.25, r)  # Cap it at four per second
+        return r
+
     def _pick_server(self, key, in_port):
         """
         Pick a server for a (hopefully) new connection
@@ -332,6 +403,27 @@ class HederaController(object):
         # log.info("mactable: %s" % self.macTable)
         log.info("PacketIn: %s" % packet)
         tcpp = packet.find('tcp')
+        if not tcpp:
+            arpp = packet.find('arp')
+            if arpp:
+                # Handle replies to our server-liveness probes
+                if arpp.opcode == arpp.REPLY:
+                    if arpp.protosrc in self.outstanding_probes:
+                        # A server is (still?) up; cool.
+                        del self.outstanding_probes[arpp.protosrc]
+                        if (self.live_servers.get(arpp.protosrc, (None, None))
+                                == (arpp.hwsrc, inport)):
+                            # Ah, nothing new here.
+                            pass
+                        else:
+                            # Ooh, new server.
+                            self.live_servers[arpp.protosrc] = arpp.hwsrc, inport
+                            self.log.info("Server %s up", arpp.protosrc)
+                return
+
+            # Not TCP and not ARP.  Don't know what to do with this.  Drop it.
+            return drop()
+
         ipp = packet.find('ipv4')
         if ipp.dstip == self.service_ip:
             # Ah, it's for our service IP and needs to be load balanced

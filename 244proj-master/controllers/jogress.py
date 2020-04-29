@@ -176,7 +176,7 @@ class HederaController(object):
         # How long do we wait for an ARP reply before we consider a server dead?
         self.arp_timeout = 3
 
-        self._do_probe()  # Kick off the probing
+
         # TODO: generalize all_switches_up to a more general state machine.
         self.all_switches_up = False  # Sequences event handling.
         core.openflow.addListeners(self, priority=0)
@@ -474,13 +474,10 @@ class HederaController(object):
 
     def _handle_PacketIn(self, event):
         # log.info("Parsing PacketIn.")
-        self.con = event.connection
-        self.mac = self.con.eth_addr
         if not self.all_switches_up:
             log.info("Saw PacketIn before all switches were up - ignoring.")
             return
         else:
-
             self._handle_packet_reactive(event)
 
     def _get_links_from_path(self, path):
@@ -514,6 +511,8 @@ class HederaController(object):
                 self._get_equal_cost_routes(src, dst)
 
     def _handle_ConnectionUp(self, event):
+        self.con = event.connection
+        self.mac = self.con.eth_addr
         sw = self.switches.get(event.dpid)
         sw_str = dpidToStr(event.dpid)
         log.info("Saw switch come up: %s", sw_str)
@@ -534,6 +533,7 @@ class HederaController(object):
         if len(self.switches) == len(self.t.switches()):
             log.info("Woo!  All switches up")
             self.all_switches_up = True
+            self._do_probe()  # Kick off the probing
             self._get_all_paths()
 
 

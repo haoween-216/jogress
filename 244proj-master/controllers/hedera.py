@@ -19,12 +19,12 @@ from pox.lib.addresses import EthAddr
 from pox.lib.packet.ipv4 import ipv4
 from pox.lib.packet.udp import udp
 from pox.lib.packet.tcp import tcp
-
+from pox.lib.util import str_to_bool, dpid_to_str
 from ripllib.mn import topos
 
 from util import buildTopo, getRouting
 
-log = core.getLogger()
+log = core.getLogger("hederaController")
 log.setLevel(logging.WARNING)
 
 # Number of bytes to send for packet_ins
@@ -116,7 +116,12 @@ class HederaController(object):
     self.paths = {}
     self.flows = {}
     self.link_usage = {}
-
+    try:
+      self.log = log.getChild(dpid_to_str(self.con.dpid))
+    except:
+      # Be nice to Python 2.6 (ugh)
+      self.log = log
+        
     # TODO: generalize all_switches_up to a more general state machine.
     self.all_switches_up = False  # Sequences event handling.
     core.openflow.addListeners(self, priority=0)

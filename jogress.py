@@ -58,6 +58,7 @@ class Switch(object):
         self.disconnect()
         log.debug("Connect %s" % (connection,))
         self.connection = connection
+        self.mac = self.connection.eth_addr
         self._listeners = connection.addListeners(self)
 
     def send_packet_data(self, outport, data=None):
@@ -162,8 +163,10 @@ class HederaController(object):
         for ip in servers:
             self.total_connection[ip] = 0
         self.memory = {}  # (srcip,dstip,srcport,dstport) -> MemoryEntry
-        self._do_probe()  # Kick off the probing
         self.outstanding_probes = {}  # IP -> expire_time
+
+
+
 
         # TODO: generalize all_switches_up to a more general state machine.
         self.all_switches_up = False  # Sequences event handling.
@@ -477,6 +480,7 @@ class HederaController(object):
             log.info("Saw PacketIn before all switches were up - ignoring.")
             return
         else:
+            self._do_probe()  # Kick off the probing
             self._handle_packet_reactive(event)
 
     def _get_links_from_path(self, path):

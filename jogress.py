@@ -309,73 +309,6 @@ class HederaController(object):
                 self.switches[sw].send_packet_data(port, event.data)
                 #  buffer_id = None
 
-    def _do_expire(self):
-        """
-        Expire probes and "memorized" flows
-        Each of these should only have a limited lifetime.
-        """
-        t = time.time()
-
-        # Expire probes
-        for ip, expire_at in self.outstanding_probes.items():
-            if t > expire_at:
-                self.outstanding_probes.pop(ip, None)
-                if ip in self.live_servers:
-                    self.log.warn("Server %s down", ip)
-                    del self.live_servers[ip]
-
-        # Expire flow
-        memory = self.memory.copy()
-        self.memory.clear()
-        for key, val in memory.items():
-            ip = key[0]
-            if ip in self.live_servers and val.is_expired:
-                # Decrease total connection for that server
-                self.total_connection[ip] -= 1
-            if not val.is_expired:
-                self.memory[key] = val
-
-    def _do_probe(self, connection):
-        """
-        Send an ARP to a server to see if it's still up
-        """
-        self._do_expire()
-        self.con = connection
-        self.mac = self.con.eth_addr
-        server = self.servers.pop(0)
-        self.servers.append(server)
-
-        r = arp()
-        r.hwtype = r.HW_TYPE_ETHERNET
-        r.prototype = r.PROTO_TYPE_IP
-        r.opcode = r.REQUEST
-        r.hwdst = ETHER_BROADCAST
-        r.protodst = server
-        r.hwsrc = self.mac
-        r.protosrc = self.service_ip
-        e = ethernet(type=ethernet.ARP_TYPE, src=self.mac,
-                     dst=ETHER_BROADCAST)
-        e.set_payload(r)
-        # self.log.debug("ARPing for %s", server)
-        msg = of.ofp_packet_out()
-        msg.data = e.pack()
-        msg.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
-        msg.in_port = of.OFPP_NONE
-        self.con.send(msg)
-
-        self.outstanding_probes[server] = time.time() + self.arp_timeout
-
-        core.callDelayed(self._probe_wait_time, self._do_probe)
-
-    @property
-    def _probe_wait_time(self):
-        """
-        Time to wait between probes
-        """
-        r = self.probe_cycle_time / float(len(self.servers))
-        r = max(.25, r)  # Cap it at four per second
-        return r
-
     def _pick_server(self, key, in_port):
         """
         Pick a server for a (hopefully) new connection
@@ -483,7 +416,7 @@ class HederaController(object):
             log.info("Saw PacketIn before all switches were up - ignoring.")
             return
         else:
-            self._do_probe(event.connection)  # Kick off the probing
+
             self._handle_packet_reactive(event)
 
     def _get_links_from_path(self, path):

@@ -409,7 +409,7 @@ class HederaController(object):
         self.macTable[packet.src] = (dpid, in_port)
 
         # log.info("mactable: %s" % self.macTable)
-        log.info("PacketIn: %s" % packet)
+        #log.info("PacketIn: %s" % packet)
         tcpp = packet.find('tcp')
         if not tcpp:
             arpp = packet.find('arp')
@@ -455,17 +455,17 @@ class HederaController(object):
             # Set up table entry towards selected server
 
 
-        # Insert flow, deliver packet directly to destination.
-        if packet.dst in self.macTable:
-            # out_dpid, out_port = self.macTable[packet.dst]
-            out_dpid, out_port = self.live_servers[entry.server]
-            self._install_reactive_path(event, out_dpid, out_port, packet)
+            # Insert flow, deliver packet directly to destination.
+            if packet.dst in self.macTable:
+                # out_dpid, out_port = self.macTable[packet.dst]
+                out_dpid, out_port = self.live_servers[entry.server]
+                self._install_reactive_path(event, out_dpid, out_port, packet)
 
-            # log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
-            self.switches[out_dpid].send_packet_data(out_port, event.data)
+                # log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
+                self.switches[out_dpid].send_packet_data(out_port, event.data)
 
-        else:
-            self._flood(event)
+            else:
+                self._flood(event)
 
     # Get host index.
     def dpid_port_to_host_index(self, dpid, port):

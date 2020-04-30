@@ -24,7 +24,7 @@ from ripllib.mn import topos
 
 from util import buildTopo, getRouting
 
-log = core.getLogger("hederaController")
+log = core.getLogger("HederaController")
 log.setLevel(logging.WARNING)
 
 # Number of bytes to send for packet_ins
@@ -121,7 +121,7 @@ class HederaController(object):
     except:
       # Be nice to Python 2.6 (ugh)
       self.log = log
-        
+
     # TODO: generalize all_switches_up to a more general state machine.
     self.all_switches_up = False  # Sequences event handling.
     core.openflow.addListeners(self, priority=0)
@@ -211,7 +211,7 @@ class HederaController(object):
         hash_ = self._ecmp_hash(packet)
         route = self.r.get_route(in_name, out_name, hash_, False)
 
-      self.log.info("route: %s" % route)
+      log.info("route: %s" % route)
       match = of.ofp_match.from_packet(packet)
       for i, node in enumerate(route):
         node_dpid = self.t.id_gen(name = node).dpid
@@ -236,7 +236,7 @@ class HederaController(object):
   def _flood(self, event):
     packet = event.parsed
     dpid = event.dpid
-    self.log.info("PacketIn: %s" % packet)
+    log.info("PacketIn: %s" % packet)
     in_port = event.port
     t = self.t
 
@@ -264,21 +264,21 @@ class HederaController(object):
   def _handle_packet_reactive(self, event):
     packet = event.parsed
     dpid = event.dpid
-    self.log.info("PacketIn: %s" % packet)
+    log.info("PacketIn: %s" % packet)
     in_port = event.port
     t = self.t
 
     # Learn MAC address of the sender on every packet-in.
     self.macTable[packet.src] = (dpid, in_port)
 
-    self.log.info("mactable: %s" % self.macTable)
+    #log.info("mactable: %s" % self.macTable)
 
     # Insert flow, deliver packet directly to destination.
     if packet.dst in self.macTable:
       out_dpid, out_port = self.macTable[packet.dst]
       self._install_reactive_path(event, out_dpid, out_port, packet)
 
-      self.log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
+      log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
       self.switches[out_dpid].send_packet_data(out_port, event.data)
 
     else:

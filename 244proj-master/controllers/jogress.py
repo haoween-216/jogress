@@ -169,7 +169,7 @@ class HederaController(object):
         for ip in servers:
             self.total_connection[ip] = 0
         self.memory = {}  # (srcip,dstip,srcport,dstport) -> MemoryEntry
-        
+
         self.outstanding_probes = {}  # IP -> expire_time
         # How quickly do we probe?
         self.probe_cycle_time = 5
@@ -358,7 +358,7 @@ class HederaController(object):
     def _flood(self, event):
         packet = event.parsed
         dpid = event.dpid
-        # log.info("PacketIn: %s" % packet)
+        log.info("flood PacketIn: %s" % packet)
         in_port = event.port
         t = self.t
 
@@ -435,7 +435,7 @@ class HederaController(object):
                             self.log.info("Server %s up", arpp.protosrc)
                 return
             # Not TCP and not ARP.  Don't know what to do with this.  Drop it.
-            return drop()
+            #return drop()
         ipp = packet.find('ipv4')
         if ipp.dstip == self.service_ip:
             # Ah, it's for our service IP and needs to be load balanced
@@ -482,9 +482,10 @@ class HederaController(object):
 
     def _handle_PacketIn(self, event):
         # log.info("Parsing PacketIn.")
+        packet = event.parsed
         if not self.all_switches_up:
             log.info("Saw PacketIn before all switches were up - ignoring.")
-            log.info("PacketIn: %s" % event.connection)
+            log.info("PacketIn: %s" % packet)
             return
         else:
             self._handle_packet_reactive(event)

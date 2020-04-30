@@ -158,7 +158,7 @@ class HederaController(object):
         self.service_ip = IPAddr(service_ip)
         self.servers = [IPAddr(a) for a in servers]
         self.live_servers = {}  # IP -> MAC,port
-
+        
         try:
             self.log = log.getChild(dpid_to_str(self.con.dpid))
         except:
@@ -181,7 +181,8 @@ class HederaController(object):
         # TODO: generalize all_switches_up to a more general state machine.
         self.all_switches_up = False  # Sequences event handling.
         core.openflow.addListeners(self, priority=0)
-
+        
+        
     def _raw_dpids(self, arr):
         "Convert a list of name strings (from Topo object) to numbers."
         return [self.t.id_gen(name=a).dpid for a in arr]
@@ -249,8 +250,7 @@ class HederaController(object):
         self.con.send(msg)
 
         self.outstanding_probes[server] = time.time() + self.arp_timeout
-        log.info("wait time:",self._probe_wait_time)
-        #core.callDelayed(self._probe_wait_time, self._do_probe)
+        core.callDelayed(self._probe_wait_time, self._do_probe)
 
     @property
     def _probe_wait_time(self):
@@ -522,10 +522,10 @@ class HederaController(object):
                 self._get_equal_cost_routes(src, dst)
 
     def _handle_ConnectionUp(self, event):
-        self.con = event.connection
-        self.mac = self.con.eth_addr
         sw = self.switches.get(event.dpid)
         sw_str = dpidToStr(event.dpid)
+        self.con = event.connection
+        self.mac = self.con.eth_addr
         log.info("Saw switch come up: %s", sw_str)
         name_str = self.t.id_gen(dpid=event.dpid).name_str()
         if name_str not in self.t.switches():
@@ -545,7 +545,8 @@ class HederaController(object):
             log.info("Woo!  All switches up")
             self.all_switches_up = True
             self._get_all_paths()
-            self._do_probe()  # Kick off the probing
+            if self.all_switches_up:
+                self._do_probe()
 
 def launch(topo, ip, servers):
     """

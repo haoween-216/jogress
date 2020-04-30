@@ -249,8 +249,8 @@ class HederaController(object):
         self.con.send(msg)
 
         self.outstanding_probes[server] = time.time() + self.arp_timeout
-
-        core.callDelayed(self._probe_wait_time, self._do_probe)
+        log.info("wait time:",self._probe_wait_time)
+        #core.callDelayed(self._probe_wait_time, self._do_probe)
 
     @property
     def _probe_wait_time(self):
@@ -412,7 +412,7 @@ class HederaController(object):
             return None
 
         # Learn MAC address of the sender on every packet-in.
-        self.macTable[packet.src] = (dpid, in_port)
+        #self.macTable[packet.src] = (dpid, in_port)
 
         log.info("mactable: %s" % self.macTable)
 

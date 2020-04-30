@@ -467,9 +467,10 @@ class HederaController(object):
             if entry.server in self.live_servers:
                 out_dpid, out_port = self.macTable[packet.dst]
                 mac, port = self.live_servers[entry.server]
-                mac2 = str_to_dpid(mac)
+                mac2 = self._eth_to_int(mac)
+                #mac3 = str_to_dpid(mac2)
                 log.info("sending to entry slb: %s %s" % (mac2, port))
-                log.info("sending to entry slb: %s %s" % (out_dpid, out_port))
+                log.info("sending to entry gff: %s %s" % (out_dpid, out_port))
 
                 self._install_reactive_path(event, mac2, port, packet)
 

@@ -401,7 +401,7 @@ class HederaController(object):
     def _handle_packet_reactive(self, event):
         packet = event.parsed
         dpid = event.dpid
-        # log.info("PacketIn: %s" % packet)
+        log.info("reacPacketIn: %s" % packet)
         in_port = event.port
         t = self.t
         def drop():
@@ -414,8 +414,8 @@ class HederaController(object):
         # Learn MAC address of the sender on every packet-in.
         self.macTable[packet.src] = (dpid, in_port)
 
-        # log.info("mactable: %s" % self.macTable)
-        #log.info("PacketIn: %s" % packet)
+        log.info("mactable: %s" % self.macTable)
+
         tcpp = packet.find('tcp')
         if not tcpp:
             arpp = packet.find('arp')
@@ -438,6 +438,7 @@ class HederaController(object):
             #return drop()
         ipp = packet.find('ipv4')
         if ipp.dstip == self.service_ip:
+            log.info("slb to",ipp.dstip)
             # Ah, it's for our service IP and needs to be load balanced
 
             # Do we already know this flow?

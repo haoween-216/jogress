@@ -19,8 +19,8 @@ from ripllib.mn import topos
 from util import buildTopo, getRouting
 import time
 
-log = core.getLogger()
-log.setLevel(logging.WARNING)
+log = core.getLogger("HederaController")
+#log.setLevel(logging.WARNING)
 
 # Number of bytes to send for packet_ins
 MISS_SEND_LEN = 2000
@@ -453,7 +453,7 @@ class HederaController(object):
             entry.refresh()
 
             # Set up table entry towards selected server
-            out_dpid, out_port = self.live_servers[entry.server]
+
 
         # Insert flow, deliver packet directly to destination.
         if packet.dst in self.macTable:
@@ -558,7 +558,7 @@ def launch(topo, ip, servers):
         servers = servers.replace(",", " ").split()
         servers = [IPAddr(x) for x in servers]
         ip = IPAddr(ip)
-
+    log.info("Load Balancer Ready.")
     core.registerNew(HederaController, t, r, IPAddr(ip), servers)
 
     log.info("Hedera running with topo=%s." % topo)

@@ -13,7 +13,7 @@ from pox.lib.packet.tcp import tcp
 from pox.lib.addresses import IPAddr, EthAddr
 from pox.lib.packet.ethernet import ethernet, ETHER_BROADCAST
 from pox.lib.packet.arp import arp
-from pox.lib.util import str_to_bool, dpid_to_str
+from pox.lib.util import str_to_bool, dpid_to_str, str_to_dpid
 from ripllib.mn import topos
 
 from util import buildTopo, getRouting
@@ -467,10 +467,11 @@ class HederaController(object):
             if entry.server in self.live_servers:
                 out_dpid, out_port = self.macTable[packet.dst]
                 mac, port = self.live_servers[entry.server]
-                log.info("sending to entry slb: %s %s" % (mac, port))
+                mac2 = str_to_dpid(mac)
+                log.info("sending to entry slb: %s %s" % (mac2, port))
                 log.info("sending to entry slb: %s %s" % (out_dpid, out_port))
 
-                self._install_reactive_path(event, out_dpid, out_port, packet)
+                self._install_reactive_path(event, mac2, port, packet)
 
                 # log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
                 self.switches[out_dpid].send_packet_data(out_port, event.data)

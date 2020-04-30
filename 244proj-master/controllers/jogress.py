@@ -476,6 +476,7 @@ class HederaController(object):
         # log.info("Parsing PacketIn.")
         if not self.all_switches_up:
             log.info("Saw PacketIn before all switches were up - ignoring.")
+            log.info("PacketIn: %s" % event.connection)
             return
         else:
             self._handle_packet_reactive(event)
@@ -533,9 +534,8 @@ class HederaController(object):
         if len(self.switches) == len(self.t.switches()):
             log.info("Woo!  All switches up")
             self.all_switches_up = True
-            self._do_probe()  # Kick off the probing
             self._get_all_paths()
-
+            self._do_probe()  # Kick off the probing
 
 def launch(topo, ip, servers):
     """

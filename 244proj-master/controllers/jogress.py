@@ -464,13 +464,12 @@ class HederaController(object):
 
 
             # Insert flow, deliver packet directly to destination.
-            if server in self.live_servers:
-                # out_dpid, out_port = self.macTable[packet.dst]
-                a = dpidToStr(self.macTable[packet.dst])
-                b = dpid_to_str(self.live_servers[entry.server])
-                self.log.debug("gf:", a)
-                self.log.debug("slb:", b)
-                out_dpid, out_port = self.live_servers[entry.server]
+            if entry.server in self.live_servers:
+                out_dpid, out_port = self.macTable[packet.dst]
+                mac, port = self.live_servers[entry.server]
+                log.info("sending to entry slb: %s %s" % (mac, port))
+                log.info("sending to entry slb: %s %s" % (out_dpid, out_port))
+
                 self._install_reactive_path(event, out_dpid, out_port, packet)
 
                 # log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))

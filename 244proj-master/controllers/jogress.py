@@ -158,7 +158,7 @@ class HederaController(object):
         self.service_ip = IPAddr(service_ip)
         self.servers = [IPAddr(a) for a in servers]
         self.live_servers = {}  # IP -> MAC,port
-        
+
         try:
             self.log = log.getChild(dpid_to_str(self.con.dpid))
         except:
@@ -181,8 +181,8 @@ class HederaController(object):
         # TODO: generalize all_switches_up to a more general state machine.
         self.all_switches_up = False  # Sequences event handling.
         core.openflow.addListeners(self, priority=0)
-        
-        
+
+
     def _raw_dpids(self, arr):
         "Convert a list of name strings (from Topo object) to numbers."
         return [self.t.id_gen(name=a).dpid for a in arr]
@@ -401,7 +401,7 @@ class HederaController(object):
     def _handle_packet_reactive(self, event):
         packet = event.parsed
         dpid = event.dpid
-        log.info("reacPacketIn: %s" % packet)
+        #log.info("reacPacketIn: %s" % packet)
         in_port = event.port
         t = self.t
         def drop():
@@ -412,9 +412,9 @@ class HederaController(object):
             return None
 
         # Learn MAC address of the sender on every packet-in.
-        #self.macTable[packet.src] = (dpid, in_port)
+        self.macTable[packet.src] = (dpid, in_port)
 
-        log.info("mactable: %s" % self.macTable)
+        #log.info("mactable: %s" % self.macTable)
 
         tcpp = packet.find('tcp')
         if not tcpp:
@@ -438,7 +438,6 @@ class HederaController(object):
             #return drop()
         ipp = packet.find('ipv4')
         if ipp.dstip == self.service_ip:
-            log.info("slb to",ipp.dstip)
             # Ah, it's for our service IP and needs to be load balanced
 
             # Do we already know this flow?
@@ -465,7 +464,7 @@ class HederaController(object):
 
 
             # Insert flow, deliver packet directly to destination.
-            if packet.dst in self.macTable:
+            if server in self.live_servers:
                 # out_dpid, out_port = self.macTable[packet.dst]
                 out_dpid, out_port = self.live_servers[entry.server]
                 self._install_reactive_path(event, out_dpid, out_port, packet)

@@ -425,6 +425,9 @@ class HederaController(object):
                     if arpp.protosrc in self.outstanding_probes:
                         # A server is (still?) up; cool.
                         del self.outstanding_probes[arpp.protosrc]
+                        loga, logb = self.live_servers[arpp.protosrc]
+                        log.info("live server : %s %s",loga, logb)
+                        log.info("hwsrc : %s",arpp.hwsrc )
                         if (self.live_servers.get(arpp.protosrc, (None, None))
                                 == (arpp.hwsrc, in_port)):
                             # Ah, nothing new here.
@@ -461,18 +464,14 @@ class HederaController(object):
             entry.refresh()
 
             # Set up table entry towards selected server
-
+            mac, port = self.live_servers[entry.server]
 
             # Insert flow, deliver packet directly to destination.
-            if entry.server in self.live_servers:
-                out_dpid, out_port = self.macTable[packet.dst]
-                mac, port = self.live_servers[entry.server]
-                mac2 = self._eth_to_int(mac)
-                #mac3 = str_to_dpid(mac2)
-                log.info("sending to entry slb: %s %s" % (mac2, port))
+            if mac in self.macTable:
+                out_dpid, out_port = self.macTable[mac]
                 log.info("sending to entry gff: %s %s" % (out_dpid, out_port))
 
-                self._install_reactive_path(event, mac2, port, packet)
+                self._install_reactive_path(event, out_dpid, out_port, packet)
 
                 # log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
                 self.switches[out_dpid].send_packet_data(out_port, event.data)
@@ -549,8 +548,8 @@ class HederaController(object):
             log.info("Woo!  All switches up")
             self.all_switches_up = True
             self._get_all_paths()
-            if self.all_switches_up:
-                self._do_probe()
+        if self.all_switches_up == True
+            self._do_probe()
 
 def launch(topo, ip, servers):
     """

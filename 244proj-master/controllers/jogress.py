@@ -243,11 +243,11 @@ class HederaController(object):
                      dst=ETHER_BROADCAST)
         e.set_payload(r)
         # self.log.debug("ARPing for %s", server)
-        msg = of.ofp_packet_out()
-        msg.data = e.pack()
-        msg.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
-        msg.in_port = of.OFPP_NONE
-        self.con.send(msg)
+        msg2 = of.ofp_packet_out()
+        msg2.data = e.pack()
+        msg2.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
+        msg2.in_port = of.OFPP_NONE
+        self.con.send(msg2)
 
         self.outstanding_probes[server] = time.time() + self.arp_timeout
         core.callDelayed(self._probe_wait_time, self._do_probe)
@@ -439,7 +439,37 @@ class HederaController(object):
             # Not TCP and not ARP.  Don't know what to do with this.  Drop it.
             #return drop()
         ipp = packet.find('ipv4')
-        if ipp.dstip == self.service_ip:
+        if ipp.srcip in self.servers:
+            key = ipp.srcip, ipp.dstip, tcpp.srcport, tcpp.dstport
+            entry = self.memory.get(key)
+
+            if entry is None:
+                # We either didn't install it, or we forgot about it.
+                self.log.debug("No client for %s", key)
+                return drop()
+
+            # Refresh time timeout and reinstall.
+            entry.refresh()
+
+            # self.log.debug("Install reverse flow for %s", key)
+
+            # Install reverse table entry
+            mac, port = self.live_servers[entry.server]
+
+            actions = []
+            actions.append(of.ofp_action_dl_addr.set_src(self.mac))
+            actions.append(of.ofp_action_nw_addr.set_src(self.service_ip))
+            actions.append(of.ofp_action_output(port=entry.client_port))
+            match = of.ofp_match.from_packet(packet, in_port)
+
+            msg = of.ofp_flow_mod(command=of.OFPFC_ADD,
+                                  idle_timeout=FLOW_IDLE_TIMEOUT,
+                                  hard_timeout=of.OFP_FLOW_PERMANENT,
+                                  data=event.ofp,
+                                  actions=actions,
+                                  match=match)
+            self.con.send(msg)
+        elif ipp.dstip == self.service_ip:
             # Ah, it's for our service IP and needs to be load balanced
 
             # Do we already know this flow?
@@ -472,7 +502,7 @@ class HederaController(object):
 
                 self._install_reactive_path(event, out_dpid, out_port, packet)
 
-                # log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
+                log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
                 self.switches[out_dpid].send_packet_data(out_port, event.data)
 
             else:

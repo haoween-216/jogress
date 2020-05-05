@@ -242,7 +242,7 @@ class HederaController(object):
         e = ethernet(type=ethernet.ARP_TYPE, src=self.mac,
                      dst=ETHER_BROADCAST)
         e.set_payload(r)
-        self.log.debug("ARPing for %s", server)
+        # self.log.debug("ARPing for %s", server)
         msg = of.ofp_packet_out()
         msg.data = e.pack()
         msg.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
@@ -342,8 +342,7 @@ class HederaController(object):
                     out_port, next_in_port = self.t.port(node, next_node)
                 else:
                     out_port = final_out_port
-                self.switches[node_dpid].install(out_port, match, idle_timeout=
-                IDLE_TIMEOUT)
+                self.switches[node_dpid].install(out_port, match, idle_timeout=IDLE_TIMEOUT)
 
     def _eth_to_int(self, eth):
         return sum(([ord(x) * 2 ** ((5 - i) * 8) for i, x in enumerate(eth.raw)]))
@@ -428,8 +427,8 @@ class HederaController(object):
                         if (self.live_servers.get(arpp.protosrc, (None, None))
                                 == (arpp.hwsrc, in_port)):
                             loga, logb = self.live_servers[arpp.protosrc]
-                            log.info("live server : %s %s", loga, logb)
-                            log.info("hwsrc : %s", arpp.hwsrc)
+                            #log.info("live server : %s %s", loga, logb)
+                            #log.info("hwsrc : %s", arpp.hwsrc)
                             # Ah, nothing new here.
                             pass
                         else:

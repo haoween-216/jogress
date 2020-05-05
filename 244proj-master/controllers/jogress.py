@@ -425,11 +425,11 @@ class HederaController(object):
                     if arpp.protosrc in self.outstanding_probes:
                         # A server is (still?) up; cool.
                         del self.outstanding_probes[arpp.protosrc]
-                        loga, logb = self.live_servers[arpp.protosrc]
-                        log.info("live server : %s %s",loga, logb)
-                        log.info("hwsrc : %s",arpp.hwsrc )
                         if (self.live_servers.get(arpp.protosrc, (None, None))
                                 == (arpp.hwsrc, in_port)):
+                            loga, logb = self.live_servers[arpp.protosrc]
+                            log.info("live server : %s %s", loga, logb)
+                            log.info("hwsrc : %s", arpp.hwsrc)
                             # Ah, nothing new here.
                             pass
                         else:
@@ -489,7 +489,7 @@ class HederaController(object):
         packet = event.parsed
         if not self.all_switches_up:
             log.info("Saw PacketIn before all switches were up - ignoring.")
-            log.info("PacketIn: %s" % packet)
+            #log.info("PacketIn: %s" % packet)
             return
         else:
             self._handle_packet_reactive(event)

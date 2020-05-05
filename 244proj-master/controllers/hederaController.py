@@ -24,8 +24,8 @@ from ripllib.mn import topos
 
 from util import buildTopo, getRouting
 
-log = core.getLogger("HederaController")
-log.setLevel(logging.WARNING)
+log = core.getLogger("hederaController")
+# log.setLevel(logging.WARNING)
 
 # Number of bytes to send for packet_ins
 MISS_SEND_LEN = 2000
@@ -235,14 +235,14 @@ class HederaController(object):
   def _flood(self, event):
     packet = event.parsed
     dpid = event.dpid
-    log.info("PacketIn: %s" % packet)
+    log.info("PacketInflood: %s" % packet)
     in_port = event.port
     t = self.t
 
     # Broadcast to every output port except the input on the input switch.
     # Hub behavior, baby!
     for sw in self._raw_dpids(t.layer_nodes(t.LAYER_EDGE)):
-      #log.info("considering sw %s" % sw)
+      # log.info("considering sw %s" % sw)
       ports = []
       sw_name = t.id_gen(dpid = sw).name_str()
       for host in t.down_nodes(sw_name):
@@ -290,7 +290,7 @@ class HederaController(object):
     return node.pod * ((self.t.k ** 2) / 4) + node.sw * (self.t.k / 2) + ((port - 2) / 2)
 
   def _handle_PacketIn(self, event):
-    self.log.info("Parsing PacketIn.")
+    # self.log.info("Parsing PacketIn.")
     if not self.all_switches_up:
       self.log.info("Saw PacketIn before all switches were up - ignoring.")
       return

@@ -437,33 +437,9 @@ class HederaController(object):
                             self.log.info("Server %s up", arpp.protosrc)
                 return
             # Not TCP and not ARP.  Don't know what to do with this.  Drop it.
-            return
+            # return
         ipp = packet.find('ipv4')
-        if ipp.srcip in self.servers:
-            key = ipp.srcip, ipp.dstip, tcpp.srcport, tcpp.dstport
-            entry = self.memory.get(key)
-            log.info("dari server")
-            if entry is None:
-                # We either didn't install it, or we forgot about it.
-                self.log.debug("No client for %s", key)
-                return drop()
-
-            # Refresh time timeout and reinstall.
-            entry.refresh()
-
-            # self.log.debug("Install reverse flow for %s", key)
-
-            # Install reverse table entry
-            mac, port = self.live_servers[entry.server]
-            out_dpid, out_port = self.macTable[mac]
-            log.info("sending to entry gff balik: %s %s" % (self.mac, in_port))
-
-            self._install_reactive_path(event, self.mac, in_port, packet)
-
-            log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
-            self.switches[out_dpid].send_packet_data(entry.client_port, event.data)
-
-        elif ipp.dstip == self.service_ip:
+        if ipp.dstip == self.service_ip:
             # Ah, it's for our service IP and needs to be load balanced
 
             # Do we already know this flow?
@@ -498,9 +474,18 @@ class HederaController(object):
 
                 log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
                 self.switches[out_dpid].send_packet_data(out_port, event.data)
+            return
 
-            else:
-                self._flood(event)
+        elif ipp.srcip in self.servers:
+            out_dpid, out_port = self.macTable[packet.dst]
+            log.info("instal path: %s %s" % (out_dpid, out_port))
+            self._install_reactive_path(event, out_dpid, out_port, packet)
+
+            log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
+            self.switches[out_dpid].send_packet_data(out_port, event.data)
+
+        else:
+            self._flood(event)
 
     # Get host index.
     def dpid_port_to_host_index(self, dpid, port):

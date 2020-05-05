@@ -169,7 +169,7 @@ class iplb(object):
         e = ethernet(type=ethernet.ARP_TYPE, src=self.mac,
                      dst=ETHER_BROADCAST)
         e.set_payload(r)
-        # self.log.debug("ARPing for %s", server)
+        self.log.debug("ARPing for %s", server)
         msg = of.ofp_packet_out()
         msg.data = e.pack()
         msg.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
@@ -233,6 +233,7 @@ class iplb(object):
                         if (self.live_servers.get(arpp.protosrc, (None, None))
                                 == (arpp.hwsrc, inport)):
                             # Ah, nothing new here.
+                            self.log.info("gpp")
                             pass
                         else:
                             # Ooh, new server.

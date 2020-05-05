@@ -548,7 +548,7 @@ class HederaController(object):
             log.info("Woo!  All switches up")
             self.all_switches_up = True
             self._get_all_paths()
-        if self.all_switches_up == True
+        if self.all_switches_up:
             self._do_probe()
 
 def launch(topo, ip, servers):

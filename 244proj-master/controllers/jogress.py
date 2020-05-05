@@ -409,10 +409,6 @@ class HederaController(object):
                 msg = of.ofp_packet_out(data=event.ofp)
                 self.con.send(msg)
             return None
-
-        # Learn MAC address of the sender on every packet-in.
-        self.macTable[packet.src] = (dpid, in_port)
-
         #log.info("mactable: %s" % self.macTable)
 
         tcpp = packet.find('tcp')
@@ -437,8 +433,10 @@ class HederaController(object):
                             self.log.info("Server %s up", arpp.protosrc)
                 return
             # Not TCP and not ARP.  Don't know what to do with this.  Drop it.
-            # return
+            return None
         ipp = packet.find('ipv4')
+        # Learn MAC address of the sender on every packet-in.
+        self.macTable[packet.src] = (dpid, in_port)
         if ipp.dstip == self.service_ip:
             # Ah, it's for our service IP and needs to be load balanced
 
@@ -476,7 +474,7 @@ class HederaController(object):
                 self.switches[out_dpid].send_packet_data(out_port, event.data)
             return
 
-        elif ipp.srcip in self.servers:
+        elif packet.dst in self.macTable:
             out_dpid, out_port = self.macTable[packet.dst]
             log.info("instal path: %s %s" % (out_dpid, out_port))
             self._install_reactive_path(event, out_dpid, out_port, packet)

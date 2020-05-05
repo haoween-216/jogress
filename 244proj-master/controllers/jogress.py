@@ -243,11 +243,11 @@ class HederaController(object):
                      dst=ETHER_BROADCAST)
         e.set_payload(r)
         # self.log.debug("ARPing for %s", server)
-        msg2 = of.ofp_packet_out()
-        msg2.data = e.pack()
-        msg2.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
-        msg2.in_port = of.OFPP_NONE
-        self.con.send(msg2)
+        msg = of.ofp_packet_out()
+        msg.data = e.pack()
+        msg.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
+        msg.in_port = of.OFPP_NONE
+        self.con.send(msg)
 
         self.outstanding_probes[server] = time.time() + self.arp_timeout
         core.callDelayed(self._probe_wait_time, self._do_probe)
@@ -426,9 +426,9 @@ class HederaController(object):
                         del self.outstanding_probes[arpp.protosrc]
                         if (self.live_servers.get(arpp.protosrc, (None, None))
                                 == (arpp.hwsrc, in_port)):
-                            loga, logb = self.live_servers[arpp.protosrc]
-                            #log.info("live server : %s %s", loga, logb)
-                            #log.info("hwsrc : %s", arpp.hwsrc)
+                            # loga, logb = self.live_servers[arpp.protosrc]
+                            # log.info("live server : %s %s", loga, logb)
+                            # log.info("hwsrc : %s", arpp.hwsrc)
                             # Ah, nothing new here.
                             pass
                         else:
@@ -437,12 +437,12 @@ class HederaController(object):
                             self.log.info("Server %s up", arpp.protosrc)
                 return
             # Not TCP and not ARP.  Don't know what to do with this.  Drop it.
-            #return drop()
+            return
         ipp = packet.find('ipv4')
         if ipp.srcip in self.servers:
             key = ipp.srcip, ipp.dstip, tcpp.srcport, tcpp.dstport
             entry = self.memory.get(key)
-
+            log.info("dari server")
             if entry is None:
                 # We either didn't install it, or we forgot about it.
                 self.log.debug("No client for %s", key)
@@ -455,20 +455,14 @@ class HederaController(object):
 
             # Install reverse table entry
             mac, port = self.live_servers[entry.server]
+            out_dpid, out_port = self.macTable[mac]
+            log.info("sending to entry gff balik: %s %s" % (self.mac, in_port))
 
-            actions = []
-            actions.append(of.ofp_action_dl_addr.set_src(self.mac))
-            actions.append(of.ofp_action_nw_addr.set_src(self.service_ip))
-            actions.append(of.ofp_action_output(port=entry.client_port))
-            match = of.ofp_match.from_packet(packet, in_port)
+            self._install_reactive_path(event, self.mac, in_port, packet)
 
-            msg = of.ofp_flow_mod(command=of.OFPFC_ADD,
-                                  idle_timeout=FLOW_IDLE_TIMEOUT,
-                                  hard_timeout=of.OFP_FLOW_PERMANENT,
-                                  data=event.ofp,
-                                  actions=actions,
-                                  match=match)
-            self.con.send(msg)
+            log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
+            self.switches[out_dpid].send_packet_data(entry.client_port, event.data)
+
         elif ipp.dstip == self.service_ip:
             # Ah, it's for our service IP and needs to be load balanced
 

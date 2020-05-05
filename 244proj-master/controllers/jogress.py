@@ -437,6 +437,14 @@ class HederaController(object):
         ipp = packet.find('ipv4')
         # Learn MAC address of the sender on every packet-in.
         self.macTable[packet.src] = (dpid, in_port)
+        if packet.dst in self.macTable:
+            out_dpid, out_port = self.macTable[packet.dst]
+            log.info("instal path: %s %s" % (out_dpid, out_port))
+            self._install_reactive_path(event, out_dpid, out_port, packet)
+
+            log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
+            self.switches[out_dpid].send_packet_data(out_port, event.data)
+            pass
         if ipp.dstip == self.service_ip:
             # Ah, it's for our service IP and needs to be load balanced
 
@@ -472,18 +480,11 @@ class HederaController(object):
 
                 log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
                 self.switches[out_dpid].send_packet_data(out_port, event.data)
-            return
+            else:
+                self._flood(event)
 
-        elif packet.dst in self.macTable:
-            out_dpid, out_port = self.macTable[packet.dst]
-            log.info("instal path: %s %s" % (out_dpid, out_port))
-            self._install_reactive_path(event, out_dpid, out_port, packet)
 
-            log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
-            self.switches[out_dpid].send_packet_data(out_port, event.data)
 
-        else:
-            self._flood(event)
 
     # Get host index.
     def dpid_port_to_host_index(self, dpid, port):

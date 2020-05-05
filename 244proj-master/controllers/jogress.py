@@ -354,7 +354,7 @@ class HederaController(object):
         "Return a hash based on src and dst dpids."
         return crc32(pack('QQ', src_dpid, dst_dpid))
 
-    def _flood(self, dpid, in_port):
+    def _flood(self, event, dpid, in_port):
         # packet = event.parsed
         # dpid = event.dpid
         log.info("flood PacketIn to: %s" % dpid)
@@ -482,7 +482,7 @@ class HederaController(object):
                 log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
                 self.switches[out_dpid].send_packet_data(out_port, event.data)
             else:
-                self._flood(dpid_mac, port)
+                self._flood(event, dpid_mac, port)
 
 
 

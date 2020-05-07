@@ -265,9 +265,12 @@ class HederaController(object):
         "Return an ECMP-style 5-tuple hash for TCP/IP packets, otherwise 0."
         hash_input = [0] * 5
         if isinstance(packet.next, ipv4):
-            ip = packet.next
+            ip = packet.next            
             hash_input[0] = ip.srcip.toUnsigned()
-            hash_input[1] = ip.dstip.toUnsigned()
+            if ip.dstip == self.service_ip:
+                hash_input[1] = self.selected_server.toUnsigned()
+            else:
+                hash_input[1] = ip.dstip.toUnsigned()
             hash_input[2] = ip.protocol
             if isinstance(ip.next, tcp) or isinstance(ip.next, udp):
                 l4 = ip.next
@@ -312,7 +315,7 @@ class HederaController(object):
                 num_dst_incoming_flows += 1
         return 1 / num_dst_incoming_flows
 
-    
+
 
     def _install_reactive_path(self, event, out_dpid, final_out_port, packet):
         "Install entries on route between two switches."
@@ -323,7 +326,7 @@ class HederaController(object):
             path_key = None
             in_name = self.t.id_gen(dpid=event.dpid).name_str()
             out_name = self.t.id_gen(dpid=out_dpid).name_str()
-            if ip.dstip in self.service_ip:
+            if ip.dstip == self.service_ip:
                 flow_key = self._flow_key(ip.srcip, self.selected_server)
                 path_key = self._path_key(in_name, out_name)
             else:
@@ -333,7 +336,10 @@ class HederaController(object):
 
             if path_key in self.paths:
                 self.flows[flow_key] = -1
-                flow_demand = self._get_flow_demand(ip.dstip)
+                if ip.dstip == self.service_ip:
+                    flow_demand = self._get_flow_demand(self.selected_server)
+                else:
+                    flow_demand = self._get_flow_demand(ip.dstip)
                 route = self._global_first_fit(flow_key, path_key, flow_demand, packet)
             else:
                 hash_ = self._ecmp_hash(packet)
@@ -438,7 +444,7 @@ class HederaController(object):
                         else:
                             # Ooh, new server.
                             self.live_servers[arpp.protosrc] = arpp.hwsrc, in_port
-                            self.log.info("Server %s %s up", arpp.protosrc)
+                            self.log.info("Server %s up", arpp.protosrc)
                 return
             # Not TCP and not ARP.  Don't know what to do with this.  Drop it.
 

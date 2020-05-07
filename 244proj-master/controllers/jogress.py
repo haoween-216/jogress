@@ -317,10 +317,16 @@ class HederaController(object):
 
         if isinstance(packet.next, ipv4):
             ip = packet.next
-
+            mac_dpid = list(self.macTable.keys())[list(self.macTable.values()).index(out_dpid)]
+            server_mac = list(self.live_servers.keys())[list(self.live_servers.values()).index(mac_dpid)]
+            
             in_name = self.t.id_gen(dpid=event.dpid).name_str()
             out_name = self.t.id_gen(dpid=out_dpid).name_str()
-
+            
+            if ip.dstip in self.service_ip:
+                flow_key = self._flow_key(ip.srcip, server_mac)
+                path_key = self._path_key(in_name, out_name)
+            else:
             flow_key = self._flow_key(ip.srcip, ip.dstip)
             path_key = self._path_key(in_name, out_name)
 
@@ -398,9 +404,10 @@ class HederaController(object):
         return ipserver
 
     def _handle_packet_reactive(self, event):
+        global server
         packet = event.parsed
         dpid = event.dpid
-        log.info("PacketIn: %s" % packet)
+        # log.info("PacketIn: %s" % packet)
         in_port = event.port
         t = self.t
         self.macTable[packet.src] = (dpid, in_port)

@@ -403,6 +403,7 @@ class HederaController(object):
         log.info("PacketIn: %s" % packet)
         in_port = event.port
         t = self.t
+        self.macTable[packet.src] = (dpid, in_port)
         def drop():
             if event.ofp.buffer_id is not None:
                 # Kill the buffer
@@ -410,7 +411,7 @@ class HederaController(object):
                 self.con.send(msg)
             return None
         #log.info("mactable: %s" % self.macTable)
-        self.macTable[packet.src] = (dpid, in_port)
+
         tcpp = packet.find('tcp')
         if not tcpp:
             arpp = packet.find('arp')
@@ -433,20 +434,21 @@ class HederaController(object):
                             self.log.info("Server %s up", arpp.protosrc)
                 return
             # Not TCP and not ARP.  Don't know what to do with this.  Drop it.
-            return drop()
+
         ipp = packet.find('ipv4')
         # Learn MAC address of the sender on every packet-in.
         # log.info("reacPacketIn: %s" % packet)
-        
+
         if ipp.srcip in self.servers:
+            log.info("packetin dri server :%s" % packet)
             out_dpid, out_port = self.macTable[packet.dst]
-            log.info("install path ke S: %s %s" % (out_dpid, out_port))
+            log.info("instal path S: %s %s" % (out_dpid, out_port))
             self._install_reactive_path(event, out_dpid, out_port, packet)
 
             log.info("sending to S entry in mactable: %s %s" % (out_dpid, out_port))
             self.switches[out_dpid].send_packet_data(out_port, event.data)
-            
-        elif ipp.dstip == self.service_ip:
+            pass
+        if ipp.dstip == self.service_ip:
             # Ah, it's for our service IP and needs to be load balanced
 
             # Do we already know this flow?

@@ -265,7 +265,7 @@ class HederaController(object):
         "Return an ECMP-style 5-tuple hash for TCP/IP packets, otherwise 0."
         hash_input = [0] * 5
         if isinstance(packet.next, ipv4):
-            ip = packet.next            
+            ip = packet.next
             hash_input[0] = ip.srcip.toUnsigned()
             if ip.dstip == self.service_ip:
                 hash_input[1] = self.selected_server.toUnsigned()
@@ -327,6 +327,7 @@ class HederaController(object):
             in_name = self.t.id_gen(dpid=event.dpid).name_str()
             out_name = self.t.id_gen(dpid=out_dpid).name_str()
             if ip.dstip == self.service_ip:
+                log.info("pake server")
                 flow_key = self._flow_key(ip.srcip, self.selected_server)
                 path_key = self._path_key(in_name, out_name)
             else:
@@ -337,6 +338,7 @@ class HederaController(object):
             if path_key in self.paths:
                 self.flows[flow_key] = -1
                 if ip.dstip == self.service_ip:
+                    log.info("pake server")
                     flow_demand = self._get_flow_demand(self.selected_server)
                 else:
                     flow_demand = self._get_flow_demand(ip.dstip)

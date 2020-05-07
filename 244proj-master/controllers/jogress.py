@@ -312,13 +312,23 @@ class HederaController(object):
                 num_dst_incoming_flows += 1
         return 1 / num_dst_incoming_flows
 
+    def _getKeysByValue(dictOfElements, valueToFind):
+        listOfKeys = list()
+        listOfItems = dictOfElements.items()
+        for item in listOfItems:
+            if item[1] == valueToFind:
+                listOfKeys.append(item[0])
+        return listOfKeys
+
     def _install_reactive_path(self, event, out_dpid, final_out_port, packet):
         "Install entries on route between two switches."
 
         if isinstance(packet.next, ipv4):
             ip = packet.next
-            mac_dpid = list(self.macTable.keys())[list(self.macTable.values()).index(out_dpid)]
-            server_mac = list(self.live_servers.keys())[list(self.live_servers.values()).index(mac_dpid)]
+            # mac_dpid = list(self.macTable.keys())[list(self.macTable.values()).index(out_dpid)]
+            mac_dpid = self._getKeysByValue(self.macTable, out_dpid)
+            # server_mac = list(self.live_servers.keys())[list(self.live_servers.values()).index(mac_dpid)]
+            server_mac = self._getKeysByValue(self.live_servers, mac_dpid)
             flow_key = None
             path_key = None
             in_name = self.t.id_gen(dpid=event.dpid).name_str()

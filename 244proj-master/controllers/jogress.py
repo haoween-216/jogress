@@ -158,7 +158,7 @@ class HederaController(object):
         self.service_ip = IPAddr(service_ip)
         self.servers = [IPAddr(a) for a in servers]
         self.live_servers = {}  # IP -> MAC,port
-
+        self.selected_server = None
         try:
             self.log = log.getChild(dpid_to_str(self.con.dpid))
         except:
@@ -312,29 +312,19 @@ class HederaController(object):
                 num_dst_incoming_flows += 1
         return 1 / num_dst_incoming_flows
 
-    def _getKeysByValue(dictOfElements, valueToFind):
-        listOfKeys = list()
-        listOfItems = dictOfElements.items()
-        for item in listOfItems:
-            if item[1] == valueToFind:
-                listOfKeys.append(item[0])
-        return listOfKeys
+    
 
     def _install_reactive_path(self, event, out_dpid, final_out_port, packet):
         "Install entries on route between two switches."
 
         if isinstance(packet.next, ipv4):
             ip = packet.next
-            # mac_dpid = list(self.macTable.keys())[list(self.macTable.values()).index(out_dpid)]
-            mac_dpid = self._getKeysByValue(self.macTable, out_dpid)
-            # server_mac = list(self.live_servers.keys())[list(self.live_servers.values()).index(mac_dpid)]
-            server_mac = self._getKeysByValue(self.live_servers, mac_dpid)
             flow_key = None
             path_key = None
             in_name = self.t.id_gen(dpid=event.dpid).name_str()
             out_name = self.t.id_gen(dpid=out_dpid).name_str()
             if ip.dstip in self.service_ip:
-                flow_key = self._flow_key(ip.srcip, server_mac)
+                flow_key = self._flow_key(ip.srcip, self.selected_server)
                 path_key = self._path_key(in_name, out_name)
             else:
                 flow_key = self._flow_key(ip.srcip, ip.dstip)
@@ -448,7 +438,7 @@ class HederaController(object):
                         else:
                             # Ooh, new server.
                             self.live_servers[arpp.protosrc] = arpp.hwsrc, in_port
-                            self.log.info("Server %s up", arpp.protosrc)
+                            self.log.info("Server %s %s up", arpp.protosrc)
                 return
             # Not TCP and not ARP.  Don't know what to do with this.  Drop it.
 
@@ -482,7 +472,7 @@ class HederaController(object):
                 entry = MemoryEntry(server, packet, in_port)
                 self.memory[entry.from_client_to_server] = entry
                 self.memory[entry.from_server_to_client] = entry
-
+                self.selected_server = server
                 # Increase total connection for that server
                 self.total_connection[server] += 1
             # Update timestamp

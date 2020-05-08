@@ -433,14 +433,14 @@ class HederaController(object):
                 self.con.send(msg)
             return None
         #log.info("mactable: %s" % self.macTable)
-        
+        self.macTable[packet.src] = (dpid, in_port)
         tcpp = packet.find('tcp')
         if not tcpp:
             arpp = packet.find('arp')
             if arpp:
                 # Handle replies to our server-liveness probes
                 if arpp.opcode == arpp.REPLY:
-                    log.info("packetin arp : %s" %packet)
+                    # log.info("packetin arp : %s" %packet)
                     if arpp.protosrc in self.outstanding_probes:
                         # A server is (still?) up; cool.
                         del self.outstanding_probes[arpp.protosrc]
@@ -467,7 +467,7 @@ class HederaController(object):
         ipp = packet.find('ipv4')
         # Learn MAC address of the sender on every packet-in.
         log.info("reacPacketIn: %s" % packet)
-        self.macTable[packet.src] = (dpid, in_port)
+
         if ipp.srcip in self.servers:
             log.info("packetin dri server :%s" % packet)
             out_dpid, out_port = self.macTable[packet.dst]

@@ -433,7 +433,7 @@ class HederaController(object):
                 self.con.send(msg)
             return None
         #log.info("mactable: %s" % self.macTable)
-
+        
         tcpp = packet.find('tcp')
         if not tcpp:
             arpp = packet.find('arp')
@@ -454,6 +454,10 @@ class HederaController(object):
                             # Ooh, new server.
                             self.live_servers[arpp.protosrc] = arpp.hwsrc, in_port
                             self.log.info("Server %s up", arpp.protosrc)
+                            dpid_s = self._eth_to_int(arpp.hwsrc)
+                            self.log.info("install path to %s" % dpid_s)
+                            self._install_reactive_path(event, dpid_s, in_port, packet)
+                            self.switches[dpid_s].send_packet_data(in_port, event.data)
                             if len(self.live_servers) == len(self.servers):
                                 self.probe_cycle_time = 100
                 return

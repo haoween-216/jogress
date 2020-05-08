@@ -525,12 +525,16 @@ class HederaController(object):
 
     def _handle_PacketIn(self, event):
         # log.info("Parsing PacketIn.")
+        self.con = event.connection
+        self.mac = self.con.eth_addr
         packet = event.parsed
         if not self.all_switches_up:
             log.info("Saw PacketIn before all switches were up - ignoring.")
             #log.info("PacketIn: %s" % packet)
             return
         else:
+            if self.all_switches_up:
+                self._do_probe()
             self._handle_packet_reactive(event)
 
     def _get_links_from_path(self, path):
@@ -566,8 +570,6 @@ class HederaController(object):
     def _handle_ConnectionUp(self, event):
         sw = self.switches.get(event.dpid)
         sw_str = dpidToStr(event.dpid)
-        self.con = event.connection
-        self.mac = self.con.eth_addr
         log.info("Saw switch come up: %s", sw_str)
         name_str = self.t.id_gen(dpid=event.dpid).name_str()
         if name_str not in self.t.switches():
@@ -587,8 +589,7 @@ class HederaController(object):
             log.info("Woo!  All switches up")
             self.all_switches_up = True
             self._get_all_paths()
-        if self.all_switches_up:
-            self._do_probe()
+        
 
 def launch(topo, ip, servers):
     """

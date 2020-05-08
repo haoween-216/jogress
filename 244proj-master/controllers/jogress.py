@@ -533,7 +533,7 @@ class HederaController(object):
             #log.info("PacketIn: %s" % packet)
             return
         else:
-            if self.all_switches_up:
+            if packet.next.dstip == self.service_ip:
                 self._do_probe()
             self._handle_packet_reactive(event)
 
@@ -589,7 +589,7 @@ class HederaController(object):
             log.info("Woo!  All switches up")
             self.all_switches_up = True
             self._get_all_paths()
-        
+
 
 def launch(topo, ip, servers):
     """

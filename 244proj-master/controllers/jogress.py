@@ -368,11 +368,18 @@ class HederaController(object):
         "Return a hash based on src and dst dpids."
         return crc32(pack('QQ', src_dpid, dst_dpid))
 
-    def _flood(self, event):
+    def _flood(self, event, dpid_server, port_server):
         packet = event.parsed
-        dpid = event.dpid
+
+        if packet.next.srcip == self.service_ip:
+            log.info("vip")
+            dpid = dpid_server
+            in_port = port_server
+        else:
+            dpid = event.dpid
+            in_port = event.port
         log.info("flood PacketIn to: %s" % packet)
-        in_port = event.port
+
         t = self.t
 
         # Broadcast to every output port except the input on the input switch.
@@ -418,7 +425,7 @@ class HederaController(object):
         # log.info("PacketIn: %s" % packet)
         in_port = event.port
         t = self.t
-        self.macTable[packet.src] = (dpid, in_port)
+
         def drop():
             if event.ofp.buffer_id is not None:
                 # Kill the buffer
@@ -453,7 +460,8 @@ class HederaController(object):
         ipp = packet.find('ipv4')
         # Learn MAC address of the sender on every packet-in.
         # log.info("reacPacketIn: %s" % packet)
-
+        self.probe_cycle_time = 50
+        self.macTable[packet.src] = (dpid, in_port)
         if ipp.srcip in self.servers:
             log.info("packetin dri server :%s" % packet)
             out_dpid, out_port = self.macTable[packet.dst]
@@ -499,7 +507,7 @@ class HederaController(object):
                 log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
                 self.switches[out_dpid].send_packet_data(out_port, event.data)
             else:
-                self._flood(event)
+                self._flood(event, dpid_mac, port)
 
 
 

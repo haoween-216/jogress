@@ -454,13 +454,14 @@ class HederaController(object):
                             # Ooh, new server.
                             self.live_servers[arpp.protosrc] = arpp.hwsrc, in_port
                             self.log.info("Server %s up", arpp.protosrc)
+                            if len(self.live_servers) == len(self.servers):
+                                self.probe_cycle_time = 100
                 return
             # Not TCP and not ARP.  Don't know what to do with this.  Drop it.
 
         ipp = packet.find('ipv4')
         # Learn MAC address of the sender on every packet-in.
-        # log.info("reacPacketIn: %s" % packet)
-        self.probe_cycle_time = 50
+        log.info("reacPacketIn: %s" % packet)
         self.macTable[packet.src] = (dpid, in_port)
         if ipp.srcip in self.servers:
             log.info("packetin dri server :%s" % packet)

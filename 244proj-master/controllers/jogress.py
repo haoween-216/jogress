@@ -440,6 +440,7 @@ class HederaController(object):
             if arpp:
                 # Handle replies to our server-liveness probes
                 if arpp.opcode == arpp.REPLY:
+                    log.info("packetin arp : %s" %packet)
                     if arpp.protosrc in self.outstanding_probes:
                         # A server is (still?) up; cool.
                         del self.outstanding_probes[arpp.protosrc]
@@ -454,7 +455,7 @@ class HederaController(object):
                             # Ooh, new server.
                             self.live_servers[arpp.protosrc] = arpp.hwsrc, in_port
                             self.log.info("Server %s up", arpp.protosrc)
-                            dpid_s = self._eth_to_int(arpp.hwsrc)
+                            dpid_s = self._eth_to_int(arpp.hwdst)
                             self.log.info("install path to %s" % dpid_s)
                             self._install_reactive_path(event, dpid_s, in_port, packet)
                             self.switches[dpid_s].send_packet_data(in_port, event.data)

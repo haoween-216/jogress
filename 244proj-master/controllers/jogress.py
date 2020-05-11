@@ -457,7 +457,7 @@ class HederaController(object):
         # Learn MAC address of the sender on every packet-in.
         log.info("reacPacketIn: %s" % packet)
 
-        if ipp.srcip in self.servers:
+        if packet.dst in self.macTable:
             log.info("packetin dri server :%s" % packet)
             out_dpid, out_port = self.macTable[packet.dst]
             log.info("instal path S: %s %s" % (out_dpid, out_port))
@@ -465,7 +465,7 @@ class HederaController(object):
 
             log.info("sending to S entry in mactable: %s %s" % (out_dpid, out_port))
             self.switches[out_dpid].send_packet_data(out_port, event.data)
-            pass
+
         elif ipp.dstip == self.service_ip:
             # Ah, it's for our service IP and needs to be load balanced
 
@@ -574,7 +574,7 @@ class HederaController(object):
             log.info("Woo!  All switches up")
             self.all_switches_up = True
             self._get_all_paths()
-        if self.all_switches_up == True and len(self.switches) == len(self.t.switches)):
+        if self.all_switches_up == True:
             self._do_probe()
 
 def launch(topo, ip, servers):

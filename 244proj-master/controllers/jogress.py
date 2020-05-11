@@ -448,7 +448,7 @@ class HederaController(object):
                         else:
                             # Ooh, new server.
                             self.live_servers[arpp.protosrc] = arpp.hwsrc, in_port
-                            self.log.info("Server %s up", arpp.protosrc)
+                            self.log.info("Server %s port %s up" % (arpp.hwsrc,in_port))
 
                 return
             # Not TCP and not ARP.  Don't know what to do with this.  Drop it.
@@ -511,7 +511,7 @@ class HederaController(object):
 
     def _handle_PacketIn(self, event):
         # log.info("Parsing PacketIn.")
-        
+
         packet = event.parsed
         if not self.all_switches_up:
             log.info("Saw PacketIn before all switches were up - ignoring.")
@@ -574,7 +574,7 @@ class HederaController(object):
             log.info("Woo!  All switches up")
             self.all_switches_up = True
             self._get_all_paths()
-        if self.all_switches_up == True:
+        if self.all_switches_up == True and len(self.switches) == len(self.t.switches)):
             self._do_probe()
 
 def launch(topo, ip, servers):

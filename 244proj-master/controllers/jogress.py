@@ -369,7 +369,7 @@ class HederaController(object):
         return crc32(pack('QQ', src_dpid, dst_dpid))
 
     def _flood(self, event):
-        packet = event.parsed      
+        packet = event.parsed
         dpid = event.dpid
         in_port = event.port
         log.info("flood PacketIn to: %s" % packet)
@@ -434,7 +434,7 @@ class HederaController(object):
             if arpp:
                 # Handle replies to our server-liveness probes
                 if arpp.opcode == arpp.REPLY:
-                    # log.info("packetin arp : %s" %packet)
+                    log.info("packetin arp : %s" %packet)
                     if arpp.protosrc in self.outstanding_probes:
                         # A server is (still?) up; cool.
                         del self.outstanding_probes[arpp.protosrc]

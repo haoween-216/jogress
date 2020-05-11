@@ -327,7 +327,7 @@ class HederaController(object):
             in_name = self.t.id_gen(dpid=event.dpid).name_str()
             out_name = self.t.id_gen(dpid=out_dpid).name_str()
             if ip.dstip == self.service_ip:
-                log.info("pake server")
+                log.info("pake server : %s -> %s" % (ip.dstip, self.selected_server))
                 flow_key = self._flow_key(ip.srcip, self.selected_server)
                 path_key = self._path_key(in_name, out_name)
             else:
@@ -338,7 +338,7 @@ class HederaController(object):
             if path_key in self.paths:
                 self.flows[flow_key] = -1
                 if ip.dstip == self.service_ip:
-                    log.info("pake server")
+                    log.info("pake server 2")
                     flow_demand = self._get_flow_demand(self.selected_server)
                 else:
                     flow_demand = self._get_flow_demand(ip.dstip)
@@ -449,12 +449,7 @@ class HederaController(object):
                             # Ooh, new server.
                             self.live_servers[arpp.protosrc] = arpp.hwsrc, in_port
                             self.log.info("Server %s up", arpp.protosrc)
-                            dpid_s = self._eth_to_int(arpp.hwdst)
-                            self.log.info("install path to %s" % packet)
-                            self._install_reactive_path(event, dpid_s, in_port, packet)
-                            self.switches[dpid_s].send_packet_data(in_port, event.data)
-                            if len(self.live_servers) == len(self.servers):
-                                self.probe_cycle_time = 100
+
                 return
             # Not TCP and not ARP.  Don't know what to do with this.  Drop it.
 

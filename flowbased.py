@@ -169,7 +169,7 @@ class iplb(object):
         e = ethernet(type=ethernet.ARP_TYPE, src=self.mac,
                      dst=ETHER_BROADCAST)
         e.set_payload(r)
-        self.log.debug("ARPing for %s", server)
+        log.debug("ARPing for %s", server)
         msg = of.ofp_packet_out()
         msg.data = e.pack()
         msg.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
@@ -201,7 +201,7 @@ class iplb(object):
             if self.total_connection[x] < totalconns:
                 ipserver = x
                 totalconns = self.total_connection[x]
-        self.log.debug("server koneksi terkecil adalah: %s" % ipserver)
+        log.debug("server koneksi terkecil adalah: %s" % ipserver)
         return ipserver
 
         # if len(self.total_connection) == 0:
@@ -237,7 +237,7 @@ class iplb(object):
                         else:
                             # Ooh, new server.
                             self.live_servers[arpp.protosrc] = arpp.hwsrc, inport
-                            self.log.info("Server %s up", arpp.protosrc)
+                            log.info("Server %s up", arpp.protosrc)
                 return
 
             # Not TCP and not ARP.  Don't know what to do with this.  Drop it.
@@ -294,7 +294,7 @@ class iplb(object):
 
                 # Pick a server for this flow
                 server = self._pick_server(key, inport)
-                self.log.debug("Directing traffic to %s", server)
+                log.debug("Directing traffic to %s", server)
                 entry = MemoryEntry(server, packet, inport)
                 self.memory[entry.from_client_to_server] = entry
                 self.memory[entry.from_server_to_client] = entry

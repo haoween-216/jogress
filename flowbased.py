@@ -249,6 +249,7 @@ class iplb(object):
 
         # Incoming packet from server
         if ipp.srcip in self.servers:
+            log.info("from server : %s" % packet)
             key = ipp.srcip, ipp.dstip, tcpp.srcport, tcpp.dstport
             entry = self.memory.get(key)
 
@@ -307,7 +308,7 @@ class iplb(object):
 
             # Set up table entry towards selected server
             mac, port = self.live_servers[entry.server]
-
+            log.info("send to : %s mac %s port" % (mac, port))
             actions = []
             actions.append(of.ofp_action_dl_addr.set_dst(mac))
             actions.append(of.ofp_action_nw_addr.set_dst(entry.server))
@@ -346,7 +347,7 @@ def launch(ip, servers):
             _dpid = event.dpid
 
         if _dpid != event.dpid:
-            log.warn("Ignoring switch %s", event.connection)
+            log.info("Ignoring switch %s", event.connection)
         else:
             log.info("Load Balancing on %s", event.connection)
 

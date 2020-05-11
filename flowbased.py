@@ -233,7 +233,6 @@ class iplb(object):
                         if (self.live_servers.get(arpp.protosrc, (None, None))
                                 == (arpp.hwsrc, inport)):
                             # Ah, nothing new here.
-                            self.log.info("gpp")
                             pass
                         else:
                             # Ooh, new server.
@@ -249,10 +248,39 @@ class iplb(object):
         ipp = packet.find('ipv4')
 
         # Incoming packet from server
+        if ipp.srcip in self.servers:
+            key = ipp.srcip, ipp.dstip, tcpp.srcport, tcpp.dstport
+            entry = self.memory.get(key)
 
+            if entry is None:
+                # We either didn't install it, or we forgot about it.
+                self.log.debug("No client for %s", key)
+                return drop()
+
+            # Refresh time timeout and reinstall.
+            entry.refresh()
+
+            # self.log.debug("Install reverse flow for %s", key)
+
+            # Install reverse table entry
+            mac, port = self.live_servers[entry.server]
+
+            actions = []
+            actions.append(of.ofp_action_dl_addr.set_src(self.mac))
+            actions.append(of.ofp_action_nw_addr.set_src(self.service_ip))
+            actions.append(of.ofp_action_output(port=entry.client_port))
+            match = of.ofp_match.from_packet(packet, inport)
+
+            msg = of.ofp_flow_mod(command=of.OFPFC_ADD,
+                                  idle_timeout=FLOW_IDLE_TIMEOUT,
+                                  hard_timeout=of.OFP_FLOW_PERMANENT,
+                                  data=event.ofp,
+                                  actions=actions,
+                                  match=match)
+            self.con.send(msg)
 
         # Incoming packet from client
-        if ipp.dstip == self.service_ip:
+        elif ipp.dstip == self.service_ip:
             # Ah, it's for our service IP and needs to be load balanced
 
             # Do we already know this flow?

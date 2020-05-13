@@ -13,14 +13,14 @@ from pox.lib.packet.tcp import tcp
 from pox.lib.addresses import IPAddr, EthAddr
 from pox.lib.packet.ethernet import ethernet, ETHER_BROADCAST
 from pox.lib.packet.arp import arp
-
+from pox.lib.util import str_to_bool, dpid_to_str, str_to_dpid
 from ripllib.mn import topos
 
 from util import buildTopo, getRouting
 import time
 
-log = core.getLogger()
-log.setLevel(logging.WARNING)
+log = core.getLogger("HederaController")
+#log.setLevel(logging.WARNING)
 
 # Number of bytes to send for packet_ins
 MISS_SEND_LEN = 2000
@@ -64,6 +64,7 @@ class Switch(object):
         msg = of.ofp_packet_out(in_port=of.OFPP_NONE, data=data)
         msg.actions.append(of.ofp_action_output(port=outport))
         self.connection.send(msg)
+        log.info("send data to: %s" % self.dpid)
 
     def send_packet_bufid(self, outport, buffer_id=None):
         msg = of.ofp_packet_out(in_port=of.OFPP_NONE)
@@ -81,6 +82,7 @@ class Switch(object):
         msg.actions.append(of.ofp_action_output(port=port))
         msg.buffer_id = buf
         self.connection.send(msg)
+        log.info("install path: %s" % self.dpid)
 
     def install_multiple(self, actions, match, buf=None, idle_timeout=0,
                          hard_timeout=0, priority=of.OFP_DEFAULT_PRIORITY):
@@ -157,12 +159,19 @@ class HederaController(object):
 
         self.service_ip = IPAddr(service_ip)
         self.servers = [IPAddr(a) for a in servers]
-
         self.live_servers = {}  # IP -> MAC,port
+        self.selected_server = None
+        try:
+            self.log = log.getChild(dpid_to_str(self.con.dpid))
+        except:
+            # Be nice to Python 2.6 (ugh)
+            self.log = log
+
         self.total_connection = {}  # IP -> total connection
         for ip in servers:
             self.total_connection[ip] = 0
         self.memory = {}  # (srcip,dstip,srcport,dstport) -> MemoryEntry
+
         self.outstanding_probes = {}  # IP -> expire_time
         # How quickly do we probe?
         self.probe_cycle_time = 5
@@ -170,9 +179,11 @@ class HederaController(object):
         # How long do we wait for an ARP reply before we consider a server dead?
         self.arp_timeout = 3
 
+
         # TODO: generalize all_switches_up to a more general state machine.
         self.all_switches_up = False  # Sequences event handling.
         core.openflow.addListeners(self, priority=0)
+
 
     def _raw_dpids(self, arr):
         "Convert a list of name strings (from Topo object) to numbers."
@@ -187,13 +198,81 @@ class HederaController(object):
     def _link_key(self, sw1_name, sw2_name):
         return sw1_name + "::" + sw2_name
 
+    def _do_expire(self):
+        """
+        Expire probes and "memorized" flows
+        Each of these should only have a limited lifetime.
+        """
+        t = time.time()
+
+        # Expire probes
+        for ip, expire_at in self.outstanding_probes.items():
+            if t > expire_at:
+                self.outstanding_probes.pop(ip, None)
+                if ip in self.live_servers:
+                    self.log.warn("Server %s down", ip)
+                    del self.live_servers[ip]
+
+        # Expire flow
+        memory = self.memory.copy()
+        self.memory.clear()
+        for key, val in memory.items():
+            ip = key[0]
+            if ip in self.live_servers and val.is_expired:
+                # Decrease total connection for that server
+                self.total_connection[ip] -= 1
+            if not val.is_expired:
+                self.memory[key] = val
+
+    def _do_probe(self):
+        """
+        Send an ARP to a server to see if it's still up
+        """
+        self._do_expire()
+
+        server = self.servers.pop(0)
+        self.servers.append(server)
+
+        r = arp()
+        r.hwtype = r.HW_TYPE_ETHERNET
+        r.prototype = r.PROTO_TYPE_IP
+        r.opcode = r.REQUEST
+        r.hwdst = ETHER_BROADCAST
+        r.protodst = server
+        r.hwsrc = self.mac
+        r.protosrc = self.service_ip
+        e = ethernet(type=ethernet.ARP_TYPE, src=self.mac,
+                     dst=ETHER_BROADCAST)
+        e.set_payload(r)
+        self.log.debug("ARPing for %s", server)
+        msg = of.ofp_packet_out()
+        msg.data = e.pack()
+        msg.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
+        msg.in_port = of.OFPP_NONE
+        self.con.send(msg)
+
+        self.outstanding_probes[server] = time.time() + self.arp_timeout
+        core.callDelayed(self._probe_wait_time, self._do_probe)
+
+    @property
+    def _probe_wait_time(self):
+        """
+        Time to wait between probes
+        """
+        r = self.probe_cycle_time / float(len(self.servers))
+        r = max(.25, r)  # Cap it at four per second
+        return r
+
     def _ecmp_hash(self, packet):
         "Return an ECMP-style 5-tuple hash for TCP/IP packets, otherwise 0."
         hash_input = [0] * 5
         if isinstance(packet.next, ipv4):
             ip = packet.next
             hash_input[0] = ip.srcip.toUnsigned()
-            hash_input[1] = ip.dstip.toUnsigned()
+            if ip.dstip == self.service_ip:
+                hash_input[1] = self.selected_server.toUnsigned()
+            else:
+                hash_input[1] = ip.dstip.toUnsigned()
             hash_input[2] = ip.protocol
             if isinstance(ip.next, tcp) or isinstance(ip.next, udp):
                 l4 = ip.next
@@ -238,22 +317,33 @@ class HederaController(object):
                 num_dst_incoming_flows += 1
         return 1 / num_dst_incoming_flows
 
+
+
     def _install_reactive_path(self, event, out_dpid, final_out_port, packet):
         "Install entries on route between two switches."
 
         if isinstance(packet.next, ipv4):
             ip = packet.next
+            flow_key = None
 
             in_name = self.t.id_gen(dpid=event.dpid).name_str()
             out_name = self.t.id_gen(dpid=out_dpid).name_str()
+            if ip.dstip == self.service_ip:
+                log.info("pake server : %s -> %s" % (ip.dstip, self.selected_server))
+                flow_key = self._flow_key(ip.srcip, self.selected_server)
+            else:
+                flow_key = self._flow_key(ip.srcip, ip.dstip)
 
-            flow_key = self._flow_key(ip.srcip, ip.dstip)
             path_key = self._path_key(in_name, out_name)
-
             route = None
+
             if path_key in self.paths:
                 self.flows[flow_key] = -1
-                flow_demand = self._get_flow_demand(ip.dstip)
+                if ip.dstip == self.service_ip:
+                    log.info("pake server 2")
+                    flow_demand = self._get_flow_demand(self.selected_server)
+                else:
+                    flow_demand = self._get_flow_demand(ip.dstip)
                 route = self._global_first_fit(flow_key, path_key, flow_demand, packet)
             else:
                 hash_ = self._ecmp_hash(packet)
@@ -268,8 +358,7 @@ class HederaController(object):
                     out_port, next_in_port = self.t.port(node, next_node)
                 else:
                     out_port = final_out_port
-                self.switches[node_dpid].install(out_port, match, idle_timeout=
-                IDLE_TIMEOUT)
+                self.switches[node_dpid].install(out_port, match, idle_timeout=IDLE_TIMEOUT)
 
     def _eth_to_int(self, eth):
         return sum(([ord(x) * 2 ** ((5 - i) * 8) for i, x in enumerate(eth.raw)]))
@@ -284,8 +373,9 @@ class HederaController(object):
     def _flood(self, event):
         packet = event.parsed
         dpid = event.dpid
-        # log.info("PacketIn: %s" % packet)
         in_port = event.port
+        log.info("flood PacketIn to: %s" % packet)
+
         t = self.t
 
         # Broadcast to every output port except the input on the input switch.
@@ -325,38 +415,60 @@ class HederaController(object):
         return ipserver
 
     def _handle_packet_reactive(self, event):
+        global server
         packet = event.parsed
         dpid = event.dpid
         # log.info("PacketIn: %s" % packet)
         in_port = event.port
         t = self.t
-        
 
-        # Learn MAC address of the sender on every packet-in.
+        def drop():
+            if event.ofp.buffer_id is not None:
+                # Kill the buffer
+                msg = of.ofp_packet_out(data=event.ofp)
+                self.con.send(msg)
+            return None
+        #log.info("mactable: %s" % self.macTable)
         self.macTable[packet.src] = (dpid, in_port)
-
-        # log.info("mactable: %s" % self.macTable)
-        log.info("PacketIn: %s" % packet)
         tcpp = packet.find('tcp')
         if not tcpp:
             arpp = packet.find('arp')
             if arpp:
                 # Handle replies to our server-liveness probes
                 if arpp.opcode == arpp.REPLY:
+                    # log.info("packetin arp : %s" %packet)
                     if arpp.protosrc in self.outstanding_probes:
                         # A server is (still?) up; cool.
                         del self.outstanding_probes[arpp.protosrc]
                         if (self.live_servers.get(arpp.protosrc, (None, None))
                                 == (arpp.hwsrc, in_port)):
+                            # loga, logb = self.live_servers[arpp.protosrc]
+                            # log.info("live server : %s %s", loga, logb)
+                            # log.info("hwsrc : %s", arpp.hwsrc)
                             # Ah, nothing new here.
                             pass
                         else:
                             # Ooh, new server.
                             self.live_servers[arpp.protosrc] = arpp.hwsrc, in_port
-                            self.log.info("Server %s up", arpp.protosrc)
+                            self.log.info("Server %s port %s up" % (arpp.hwsrc,in_port))
+
                 return
+            # Not TCP and not ARP.  Don't know what to do with this.  Drop it.
+
         ipp = packet.find('ipv4')
-        if ipp.dstip == self.service_ip:
+        # Learn MAC address of the sender on every packet-in.
+        log.info("reacPacketIn: %s" % packet)
+
+        if ipp.srcip in self.servers:
+            log.info("packetin dri server :%s" % packet)
+            out_dpid, out_port = self.macTable[packet.dst]
+            log.info("instal path S: %s %s" % (out_dpid, out_port))
+            self._install_reactive_path(event, out_dpid, out_port, packet)
+
+            log.info("sending to S entry in mactable: %s %s" % (out_dpid, out_port))
+            self.switches[out_dpid].send_packet_data(out_port, event.data)
+
+        elif ipp.dstip == self.service_ip:
             # Ah, it's for our service IP and needs to be load balanced
 
             # Do we already know this flow?
@@ -373,24 +485,24 @@ class HederaController(object):
                 entry = MemoryEntry(server, packet, in_port)
                 self.memory[entry.from_client_to_server] = entry
                 self.memory[entry.from_server_to_client] = entry
-
+                self.selected_server = server
                 # Increase total connection for that server
                 self.total_connection[server] += 1
             # Update timestamp
             entry.refresh()
 
             # Set up table entry towards selected server
-            out_dpid, out_port = self.live_servers[entry.server]
+            mac, port = self.live_servers[entry.server]
+            dpid_mac = self._eth_to_int(mac)
+            # Insert flow, deliver packet directly to destination.
+            if mac in self.macTable:
+                out_dpid, out_port = self.macTable[mac]
+                log.info("sending to entry gff: %s %s" % (out_dpid, out_port))
 
-        # Insert flow, deliver packet directly to destination.
-        if packet.dst in self.macTable:
-            # out_dpid, out_port = self.macTable[packet.dst]
-            out_dpid, out_port = self.live_servers[entry.server]
-            self._install_reactive_path(event, out_dpid, out_port, packet)
+                self._install_reactive_path(event, out_dpid, out_port, packet)
 
-            # log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
-            self.switches[out_dpid].send_packet_data(out_port, event.data)
-
+                log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
+                self.switches[out_dpid].send_packet_data(out_port, event.data)
         else:
             self._flood(event)
 
@@ -401,8 +513,11 @@ class HederaController(object):
 
     def _handle_PacketIn(self, event):
         # log.info("Parsing PacketIn.")
+
+        packet = event.parsed
         if not self.all_switches_up:
             log.info("Saw PacketIn before all switches were up - ignoring.")
+            #log.info("PacketIn: %s" % packet)
             return
         else:
             self._handle_packet_reactive(event)
@@ -440,6 +555,8 @@ class HederaController(object):
     def _handle_ConnectionUp(self, event):
         sw = self.switches.get(event.dpid)
         sw_str = dpidToStr(event.dpid)
+        self.con = event.connection
+        self.mac = self.con.eth_addr
         log.info("Saw switch come up: %s", sw_str)
         name_str = self.t.id_gen(dpid=event.dpid).name_str()
         if name_str not in self.t.switches():
@@ -459,7 +576,8 @@ class HederaController(object):
             log.info("Woo!  All switches up")
             self.all_switches_up = True
             self._get_all_paths()
-
+        if self.all_switches_up == True:
+            self._do_probe()
 
 def launch(topo, ip, servers):
     """
@@ -482,7 +600,7 @@ def launch(topo, ip, servers):
         servers = servers.replace(",", " ").split()
         servers = [IPAddr(x) for x in servers]
         ip = IPAddr(ip)
-
+    log.info("Load Balancer Ready.")
     core.registerNew(HederaController, t, r, IPAddr(ip), servers)
 
     log.info("Hedera running with topo=%s." % topo)

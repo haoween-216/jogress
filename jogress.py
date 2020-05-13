@@ -499,11 +499,11 @@ class HederaController(object):
             # Insert flow, deliver packet directly to destination.
             if mac in self.macTable:
                 out_dpid, out_port = self.macTable[mac]
-                log.info("sending to entry gff: %s %s" % (out_dpid, out_port))
+                log.info("sending to entry gff: %s %s" % (dpid_mac, port))
 
                 self._install_reactive_path(event, out_dpid, out_port, packet)
 
-                log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
+                log.info("sending to entry in mactable: %s %s" % (dpid_mac, port))
                 self.switches[out_dpid].send_packet_data(out_port, event.data)
         else:
             self._flood(event)

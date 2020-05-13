@@ -64,7 +64,6 @@ class Switch(object):
         msg = of.ofp_packet_out(in_port=of.OFPP_NONE, data=data)
         msg.actions.append(of.ofp_action_output(port=outport))
         self.connection.send(msg)
-        # log.info("send data to: %s" % self.dpid)
 
     def send_packet_bufid(self, outport, buffer_id=None):
         msg = of.ofp_packet_out(in_port=of.OFPP_NONE)
@@ -82,7 +81,6 @@ class Switch(object):
         msg.actions.append(of.ofp_action_output(port=port))
         msg.buffer_id = buf
         self.connection.send(msg)
-        # log.info("install path: %s" % self.dpid)
 
     def install_multiple(self, actions, match, buf=None, idle_timeout=0,
                          hard_timeout=0, priority=of.OFP_DEFAULT_PRIORITY):
@@ -450,7 +448,7 @@ class HederaController(object):
                         else:
                             # Ooh, new server.
                             self.live_servers[arpp.protosrc] = arpp.hwsrc, in_port
-                            self.log.info("Server %s port %s up" % (arpp.hwsrc, in_port))
+                            self.log.info("Server %s port %s up" % (arpp.hwsrc,in_port))
 
                 return
             # Not TCP and not ARP.  Don't know what to do with this.  Drop it.
@@ -494,16 +492,14 @@ class HederaController(object):
             # Set up table entry towards selected server
             mac, port = self.live_servers[entry.server]
             dpid_mac = self._eth_to_int(mac)
-            log.info("mac : %s" % mac)
-            log.info("mac2 : $s" % dpid_mac)
             # Insert flow, deliver packet directly to destination.
             if mac in self.macTable:
                 out_dpid, out_port = self.macTable[mac]
-                log.info("sending to entry gff: %s %s" % (dpid_mac, port))
+                log.info("sending to entry gff: %s %s" % (out_dpid, out_port))
 
                 self._install_reactive_path(event, out_dpid, out_port, packet)
 
-                log.info("sending to entry in mactable: %s %s" % (dpid_mac, port))
+                log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
                 self.switches[out_dpid].send_packet_data(out_port, event.data)
         else:
             self._flood(event)

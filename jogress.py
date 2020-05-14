@@ -484,13 +484,13 @@ class HederaController(object):
 
         if ipp.srcip in self.servers:
             log.info("packetin dri server :%s" % packet)
+            if packet.dst in self.macTable:
+                out_dpid, out_port = self.macTable[packet.dst]
+                log.info("instal path S: %s %s" % (out_dpid, out_port))
+                self._install_reactive_path(event, out_dpid, out_port, packet)
 
-            out_dpid, out_port = self.macTable[packet.dst]
-            log.info("instal path S: %s %s" % (out_dpid, out_port))
-            self._install_reactive_path(event, out_dpid, out_port, packet)
-
-            log.info("sending to S entry in mactable: %s %s" % (out_dpid, out_port))
-            self.switches[out_dpid].send_packet_data(out_port, event.data)
+                log.info("sending to S entry in mactable: %s %s" % (out_dpid, out_port))
+                self.switches[out_dpid].send_packet_data(out_port, event.data)
 
         elif ipp.dstip == self.service_ip:
             log.info("packetin dri client :%s" % packet)

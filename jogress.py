@@ -59,7 +59,7 @@ class Switch(object):
         log.debug("Connect %s" % (connection,))
         self.connection = connection
         self._listeners = connection.addListeners(self)
-        
+
     def send_packet_data(self, outport, data=None):
         msg = of.ofp_packet_out(in_port=of.OFPP_NONE, data=data)
         msg.actions.append(of.ofp_action_output(port=outport))
@@ -85,6 +85,19 @@ class Switch(object):
         msg.idle_timeout = idle_timeout
         msg.hard_timeout = hard_timeout
         msg.priority = priority
+        msg.actions.append(of.ofp_action_output(port=port))
+        msg.buffer_id = buf
+        self.connection.send(msg)
+        
+    def install2(self, port, server_dst, mac, match, buf=None, idle_timeout=0, hard_timeout=0,
+                priority=of.OFP_DEFAULT_PRIORITY):
+        msg = of.ofp_flow_mod()
+        msg.match = match
+        msg.idle_timeout = idle_timeout
+        msg.hard_timeout = hard_timeout
+        msg.priority = priority
+        msg.actions.append(of.ofp_action_nw_addr.set_dst(server_dst))
+        msg.actions.append(of.ofp_action_dl_addr.set_dst(mac))
         msg.actions.append(of.ofp_action_output(port=port))
         msg.buffer_id = buf
         self.connection.send(msg)
@@ -363,7 +376,12 @@ class HederaController(object):
                     out_port, next_in_port = self.t.port(node, next_node)
                 else:
                     out_port = final_out_port
-                self.switches[node_dpid].install(out_port, match, idle_timeout=IDLE_TIMEOUT)
+                if ip.dstip == self.service_ip:
+                    mac, port_s = self.live_servers[self.selected_server]
+                    log.info("path to %s , to %s server" % (node_dpid,mac))
+                    self.switches[node_dpid].install2(out_port, self.selected_server, mac, match, idle_timeout=IDLE_TIMEOUT)
+                else:
+                    self.switches[node_dpid].install(out_port, match, idle_timeout=IDLE_TIMEOUT)
 
     def _eth_to_int(self, eth):
         return sum(([ord(x) * 2 ** ((5 - i) * 8) for i, x in enumerate(eth.raw)]))

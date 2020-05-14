@@ -397,7 +397,7 @@ class HederaController(object):
         packet = event.parsed
         dpid = event.dpid
         in_port = event.port
-        log.info("flood PacketIn to: %s" % packet)
+        # log.info("flood PacketIn to: %s" % packet)
 
         t = self.t
 
@@ -484,18 +484,13 @@ class HederaController(object):
 
         if ipp.srcip in self.servers:
             log.info("packetin dri server :%s" % packet)
-            key = ipp.srcip, ipp.dstip, tcpp.srcport, tcpp.dstport
-            entry = self.memory.get(key)
-            entry.refresh()
-            mac, port = self.live_servers[entry.server]
-            log.info("mac_s : %s" % mac)
-            dpid_mac = self._eth_to_int(mac)
-            out_dpid, out_port = self.macTable[packet.dst]
-            log.info("instal path S: %s %s" % (dpid_mac, out_port))
-            self._install_reactive_path(event, dpid_mac, out_port, packet)
 
-            log.info("sending to S entry in mactable: %s %s" % (dpid_mac, out_port))
-            self.switches[dpid_mac].send_packet_data(out_port, event.data)
+            out_dpid, out_port = self.macTable[packet.dst]
+            log.info("instal path S: %s %s" % (out_dpid, out_port))
+            self._install_reactive_path(event, out_dpid, out_port, packet)
+
+            log.info("sending to S entry in mactable: %s %s" % (out_dpid, out_port))
+            self.switches[out_dpid].send_packet_data(out_port, event.data)
 
         elif ipp.dstip == self.service_ip:
             log.info("packetin dri client :%s" % packet)

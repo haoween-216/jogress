@@ -59,8 +59,13 @@ class Switch(object):
         log.debug("Connect %s" % (connection,))
         self.connection = connection
         self._listeners = connection.addListeners(self)
+        
+    def send_packet_data(self, outport, data=None):
+        msg = of.ofp_packet_out(in_port=of.OFPP_NONE, data=data)
+        msg.actions.append(of.ofp_action_output(port=outport))
+        self.connection.send(msg)
 
-    def send_packet_data(self, outport, server_dst, mac, data=None):
+    def send_packet_data2(self, outport, server_dst, mac, data=None):
         msg = of.ofp_packet_out(in_port=of.OFPP_NONE, data=data)
         msg.actions.append(of.ofp_action_output(port=outport))
         msg.actions.append(of.ofp_action_nw_addr.set_dst(server_dst))
@@ -502,7 +507,7 @@ class HederaController(object):
                 self._install_reactive_path(event, out_dpid, out_port, packet)
 
                 log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
-                self.switches[out_dpid].send_packet_data(out_port, entry.server, mac, event.data)
+                self.switches[out_dpid].send_packet_data2(out_port, entry.server, mac, event.data)
         else:
             self._flood(event)
 

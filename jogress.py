@@ -65,11 +65,13 @@ class Switch(object):
         msg.actions.append(of.ofp_action_output(port=outport))
         self.connection.send(msg)
 
-    def send_packet_data2(self, outport, server_dst, mac, data=None):
+    def send_packet_data2(self, outport, server_src, mac_src, server_dst, mac_dst, data=None):
         msg = of.ofp_packet_out(in_port=of.OFPP_NONE, data=data)
         msg.actions.append(of.ofp_action_output(port=outport))
-        msg.actions.append(of.ofp_action_nw_addr.set_dst(server_dst))
-        msg.actions.append(of.ofp_action_dl_addr.set_dst(mac))
+        # msg.actions.append(of.ofp_action_nw_addr.set_dst(server_dst))
+        # msg.actions.append(of.ofp_action_dl_addr.set_dst(mac_dst))
+        # msg.actions.append(of.ofp_action_nw_addr.set_src(server_src))
+        # msg.actions.append(of.ofp_action_dl_addr.set_src(mac_src))
         self.connection.send(msg)
 
     def send_packet_bufid(self, outport, buffer_id=None):
@@ -527,7 +529,8 @@ class HederaController(object):
                 self._install_reactive_path(event, out_dpid, out_port, packet)
 
                 log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
-                self.switches[out_dpid].send_packet_data2(out_port, entry.server, mac, event.data)
+                self.switches[out_dpid].send_packet_data(out_port, event.data)
+                # self.switches[out_dpid].send_packet_data2(out_port, packet.next.srcip, packet.src, entry.server, mac, event.data)
         else:
             self._flood(event)
 

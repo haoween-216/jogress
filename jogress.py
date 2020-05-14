@@ -88,7 +88,7 @@ class Switch(object):
         msg.actions.append(of.ofp_action_output(port=port))
         msg.buffer_id = buf
         self.connection.send(msg)
-        
+
     def install2(self, port, server_dst, mac, match, buf=None, idle_timeout=0, hard_timeout=0,
                 priority=of.OFP_DEFAULT_PRIORITY):
         msg = of.ofp_flow_mod()
@@ -480,18 +480,25 @@ class HederaController(object):
 
         ipp = packet.find('ipv4')
         # Learn MAC address of the sender on every packet-in.
-        log.info("reacPacketIn: %s" % packet)
+        # log.info("reacPacketIn: %s" % packet)
 
         if ipp.srcip in self.servers:
             log.info("packetin dri server :%s" % packet)
+            key = ipp.srcip, ipp.dstip, tcpp.srcport, tcpp.dstport
+            entry = self.memory.get(key)
+            entry.refresh()
+            mac, port = self.live_servers[entry.server]
+            log.info("mac_s : %s" % mac)
+            dpid_mac = self._eth_to_int(mac)
             out_dpid, out_port = self.macTable[packet.dst]
-            log.info("instal path S: %s %s" % (out_dpid, out_port))
-            self._install_reactive_path(event, out_dpid, out_port, packet)
+            log.info("instal path S: %s %s" % (dpid_mac, out_port))
+            self._install_reactive_path(event, dpid_mac, out_port, packet)
 
-            log.info("sending to S entry in mactable: %s %s" % (out_dpid, out_port))
-            self.switches[out_dpid].send_packet_data(out_port, event.data)
+            log.info("sending to S entry in mactable: %s %s" % (dpid_mac, out_port))
+            self.switches[dpid_mac].send_packet_data(out_port, event.data)
 
         elif ipp.dstip == self.service_ip:
+            log.info("packetin dri client :%s" % packet)
             # Ah, it's for our service IP and needs to be load balanced
 
             # Do we already know this flow?

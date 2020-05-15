@@ -175,6 +175,7 @@ class HederaController(object):
         self.t = t  # Master Topo object, passed in and never modified.
         self.r = r  # Master Routing object, passed in and reused.
         self.macTable = {}  # [mac] -> (dpid, port)
+        self.macTable2 = {} 
         self.paths = {}
         self.flows = {}
         self.link_usage = {}
@@ -488,8 +489,8 @@ class HederaController(object):
 
         if ipp.srcip in self.servers:
             log.info("packetin dri server :%s" % packet)
-            if packet.dst in self.macTable:
-                out_dpid, out_port = self.macTable[packet.dst]
+            if packet.dst in self.macTable2:
+                out_dpid, out_port = self.macTable2[packet.dst]
                 log.info("instal path S: %s %s" % (out_dpid, out_port))
                 self._install_reactive_path(event, out_dpid, out_port, packet)
 
@@ -516,8 +517,9 @@ class HederaController(object):
                 self.memory[entry.from_server_to_client] = entry
                 self.selected_server = server
                 # Increase total connection for that server
-                if self.total_connection[server] is None:
-                    self._flood(event)
+                if self.total_connection[server] == 0:
+                    self.macTable2[packet.src] = (dpid,in_port)
+                    # self._flood(event)
                 self.total_connection[server] += 1
             # Update timestamp
             entry.refresh()

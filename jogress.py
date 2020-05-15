@@ -80,13 +80,15 @@ class Switch(object):
         msg.buffer_id = buffer_id
         self.connection.send(msg)
 
-    def install(self, port, match, buf=None, idle_timeout=0, hard_timeout=0,
+    def install(self, port, server_src, mac_src, match, buf=None, idle_timeout=0, hard_timeout=0,
                 priority=of.OFP_DEFAULT_PRIORITY):
         msg = of.ofp_flow_mod()
         msg.match = match
         msg.idle_timeout = idle_timeout
         msg.hard_timeout = hard_timeout
         msg.priority = priority
+        msg.actions.append(of.ofp_action_nw_addr.set_src(server_src))
+        msg.actions.append(of.ofp_action_dl_addr.set_src(mac_src))
         msg.actions.append(of.ofp_action_output(port=port))
         msg.buffer_id = buf
         self.connection.send(msg)
@@ -98,8 +100,6 @@ class Switch(object):
         msg.idle_timeout = idle_timeout
         msg.hard_timeout = hard_timeout
         msg.priority = priority
-        # msg.actions.append(of.ofp_action_nw_addr.set_src(server_src))
-        # msg.actions.append(of.ofp_action_dl_addr.set_src(mac_src))
         msg.actions.append(of.ofp_action_nw_addr.set_dst(server_dst))
         msg.actions.append(of.ofp_action_dl_addr.set_dst(mac_dst))
         msg.actions.append(of.ofp_action_output(port=port))
@@ -175,7 +175,7 @@ class HederaController(object):
         self.t = t  # Master Topo object, passed in and never modified.
         self.r = r  # Master Routing object, passed in and reused.
         self.macTable = {}  # [mac] -> (dpid, port)
-        self.macTable2 = {} 
+        self.macTable2 = {}
         self.paths = {}
         self.flows = {}
         self.link_usage = {}
@@ -386,7 +386,7 @@ class HederaController(object):
                     log.info("path to %s , to %s server" % (node_dpid, mac))
                     self.switches[node_dpid].install2(out_port, self.selected_server, mac, match, idle_timeout=IDLE_TIMEOUT)
                 else:
-                    self.switches[node_dpid].install(out_port, match, idle_timeout=IDLE_TIMEOUT)
+                    self.switches[node_dpid].install(out_port, self.service_ip, self.mac, match, idle_timeout=IDLE_TIMEOUT)
 
     def _eth_to_int(self, eth):
         return sum(([ord(x) * 2 ** ((5 - i) * 8) for i, x in enumerate(eth.raw)]))

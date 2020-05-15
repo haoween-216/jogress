@@ -91,15 +91,15 @@ class Switch(object):
         msg.buffer_id = buf
         self.connection.send(msg)
 
-    def install2(self, port, server_src, mac_src, server_dst, mac_dst, match, buf=None, idle_timeout=0, hard_timeout=0,
+    def install2(self, port, server_dst, mac_dst, match, buf=None, idle_timeout=0, hard_timeout=0,
                 priority=of.OFP_DEFAULT_PRIORITY):
         msg = of.ofp_flow_mod()
         msg.match = match
         msg.idle_timeout = idle_timeout
         msg.hard_timeout = hard_timeout
         msg.priority = priority
-        msg.actions.append(of.ofp_action_nw_addr.set_src(server_src))
-        msg.actions.append(of.ofp_action_dl_addr.set_src(mac_src))
+        # msg.actions.append(of.ofp_action_nw_addr.set_src(server_src))
+        # msg.actions.append(of.ofp_action_dl_addr.set_src(mac_src))
         msg.actions.append(of.ofp_action_nw_addr.set_dst(server_dst))
         msg.actions.append(of.ofp_action_dl_addr.set_dst(mac_dst))
         msg.actions.append(of.ofp_action_output(port=port))
@@ -382,8 +382,8 @@ class HederaController(object):
                     out_port = final_out_port
                 if ip.dstip == self.service_ip:
                     mac, port_s = self.live_servers[self.selected_server]
-                    log.info("path to %s , to %s server" % (node_dpid,mac))
-                    self.switches[node_dpid].install2(out_port, ip.srcip, packet.src, self.selected_server, mac, match, idle_timeout=IDLE_TIMEOUT)
+                    log.info("path to %s , to %s server" % (node_dpid, mac))
+                    self.switches[node_dpid].install2(out_port, self.selected_server, mac, match, idle_timeout=IDLE_TIMEOUT)
                 else:
                     self.switches[node_dpid].install(out_port, match, idle_timeout=IDLE_TIMEOUT)
 
@@ -516,6 +516,8 @@ class HederaController(object):
                 self.memory[entry.from_server_to_client] = entry
                 self.selected_server = server
                 # Increase total connection for that server
+                if self.total_connection[server] is None:
+                    self._flood(event)
                 self.total_connection[server] += 1
             # Update timestamp
             entry.refresh()

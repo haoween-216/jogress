@@ -196,7 +196,8 @@ class HederaController(object):
         self.paths = {}
         self.flows = {}
         self.link_usage = {}
-
+        self.last_server = 0
+        
         self.service_ip = IPAddr(service_ip)
         self.servers = [IPAddr(a) for a in servers]
         self.live_servers = {}  # IP -> MAC,port
@@ -321,7 +322,7 @@ class HederaController(object):
                 return crc32(pack('LLHHH', *hash_input))
         return 0
 
-    
+
     def _install_reactive_path(self, event, out_dpid, final_out_port, packet):
         "Install entries on route between two switches."
         in_name = self.t.id_gen(dpid=event.dpid).name_str()
@@ -392,7 +393,7 @@ class HederaController(object):
         return random.choice(self.live_servers.keys())
 
 
-def _handle_packet_reactive(self, event):
+    def _handle_packet_reactive(self, event):
         global server
         packet = event.parsed
         dpid = event.dpid

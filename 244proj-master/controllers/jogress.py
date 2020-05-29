@@ -334,9 +334,10 @@ class HederaController(object):
 
     def _install_reactive_path(self, event, out_dpid, final_out_port, packet):
         "Install entries on route between two switches."
-
+        in_port = event.port
         if isinstance(packet.next, ipv4):
             ip = packet.next
+
             # flow_key = None
 
             in_name = self.t.id_gen(dpid=event.dpid).name_str()
@@ -363,7 +364,7 @@ class HederaController(object):
                 route = self.r.get_route(in_name, out_name, hash_, False)
 
             log.info("route: %s" % route)
-            match = of.ofp_match.from_packet(packet)
+            match = of.ofp_match.from_packet(packet, in_port)
             for i, node in enumerate(route):
                 node_dpid = self.t.id_gen(name=node).dpid
                 if i < len(route) - 1:

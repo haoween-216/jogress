@@ -404,6 +404,33 @@ class HederaController(object):
                 self.switches[sw].send_packet_data(port, event.data)
                 #  buffer_id = None
 
+    def _flood2(self, event, dpid, in_port):
+        
+        # log.info("flood PacketIn to: %s" % packet)
+
+        t = self.t
+
+        # Broadcast to every output port except the input on the input switch.
+        # Hub behavior, baby!
+        for sw in self._raw_dpids(t.layer_nodes(t.LAYER_EDGE)):
+            # log.info("considering sw %s" % sw)
+            ports = []
+            sw_name = t.id_gen(dpid=sw).name_str()
+            for host in t.down_nodes(sw_name):
+                sw_port, host_port = t.port(sw_name, host)
+                if sw != dpid or (sw == dpid and in_port != sw_port):
+                    ports.append(sw_port)
+            # Send packet out each non-input host port
+            # TODO: send one packet only.
+            for port in ports:
+                # log.info("sending to port %s on switch %s" % (port, sw))
+                # buffer_id = event.ofp.buffer_id
+                # if sw == dpid:
+                #  self.switches[sw].send_packet_bufid(port, event.ofp.buffer_id)
+                # else:
+                self.switches[sw].send_packet_data(port, event.data)
+                #  buffer_id = None
+
     def _pick_server(self, key, in_port):
         """
         Pick a server for a (hopefully) new connection
@@ -519,7 +546,7 @@ class HederaController(object):
                 log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
                 self.switches[out_dpid].send_packet_data(out_port, event.data)
             else:
-                self._flood(event)
+                self._flood2(event, dpid_mac, port)
         else:
             self._flood(event)
 

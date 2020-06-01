@@ -435,7 +435,6 @@ class HederaController(object):
             return None
 
         # log.info("mactable: %s" % self.macTable)
-        self.macTable[packet.src] = (dpid, in_port)
         tcpp = packet.find('tcp')
         if not tcpp:
             arpp = packet.find('arp')
@@ -462,11 +461,18 @@ class HederaController(object):
         ipp = packet.find('ipv4')
         # Learn MAC address of the sender on every packet-in.
         # log.info("reacPacketIn: %s" % packet)
-
+        self.macTable[packet.src] = (dpid, in_port)
         if ipp.srcip in self.servers:
             log.info("packetin dri server :%s" % packet)
             if packet.dst in self.macTable2:
                 out_dpid, out_port = self.macTable2[packet.dst]
+                log.info("instal path S: %s %s" % (out_dpid, out_port))
+                self._install_reactive_path(event, out_dpid, out_port, packet)
+
+                log.info("sending to S entry in mactable: %s %s" % (out_dpid, out_port))
+                self.switches[out_dpid].send_packet_data(out_port, event.data)
+            elif packet.dst in self.macTable:
+                out_dpid, out_port = self.macTable[packet.dst]
                 log.info("instal path S: %s %s" % (out_dpid, out_port))
                 self._install_reactive_path(event, out_dpid, out_port, packet)
 
@@ -512,6 +518,8 @@ class HederaController(object):
 
                 log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
                 self.switches[out_dpid].send_packet_data(out_port, event.data)
+            else:
+                self._flood(event)
         else:
             self._flood(event)
 

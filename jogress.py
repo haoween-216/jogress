@@ -418,7 +418,7 @@ class HederaController(object):
                 self.switches[sw].send_packet_data(port, event.data)
                 #  buffer_id = None
 
-    def _flood2(self, event, dpid, in_port):
+    def _flood2(self, event, server, mac, dpid, in_port):
 
         # log.info("flood PacketIn to: %s" % packet)
 
@@ -442,7 +442,7 @@ class HederaController(object):
                 # if sw == dpid:
                 #  self.switches[sw].send_packet_bufid(port, event.ofp.buffer_id)
                 # else:
-                self.switches[sw].send_packet_data(port, event.data)
+                self.switches[sw].send_packet_data3(port, server, mac, event.data)
                 #  buffer_id = None
 
     def _pick_server(self, key, in_port):
@@ -475,7 +475,6 @@ class HederaController(object):
                 self.con.send(msg)
             return None
 
-        self.macTable[packet.src] = (dpid, in_port)
         # log.info("mactable: %s" % self.macTable)
         tcpp = packet.find('tcp')
         if not tcpp:
@@ -503,11 +502,19 @@ class HederaController(object):
         ipp = packet.find('ipv4')
         # Learn MAC address of the sender on every packet-in.
         # log.info("reacPacketIn: %s" % packet)
+        self.macTable[packet.src] = (dpid, in_port)
 
         if ipp.srcip in self.servers:
             log.info("packetin dri server :%s" % packet)
             if packet.dst in self.macTable2:
                 out_dpid, out_port = self.macTable2[packet.dst]
+                log.info("instal path S: %s %s" % (out_dpid, out_port))
+                self._install_reactive_path(event, out_dpid, out_port, packet)
+
+                log.info("sending to S entry in mactable: %s %s" % (out_dpid, out_port))
+                self.switches[out_dpid].send_packet_data2(out_port, self.service_ip, self.mac, event.data)
+            elif packet.dst in self.macTable:
+                out_dpid, out_port = self.macTable[packet.dst]
                 log.info("instal path S: %s %s" % (out_dpid, out_port))
                 self._install_reactive_path(event, out_dpid, out_port, packet)
 
@@ -553,8 +560,8 @@ class HederaController(object):
 
                 log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
                 self.switches[out_dpid].send_packet_data3(out_port, server, mac, event.data)
-            # else:
-                # self._flood2(event, dpid_mac, port)
+            else:
+                self._flood2(event, server, mac, dpid_mac, port)
         else:
             self._flood(event)
 

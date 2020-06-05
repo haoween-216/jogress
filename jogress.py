@@ -486,6 +486,7 @@ class HederaController(object):
                 self.con.send(msg)
             return None
 
+        self.macTable[packet.src] = (dpid, in_port)
         # log.info("mactable: %s" % self.macTable)
         tcpp = packet.find('tcp')
         if not tcpp:
@@ -506,6 +507,14 @@ class HederaController(object):
                             self.log.info("Server %s port %s up" % (arpp.hwsrc, in_port))
                         if len(self.live_servers) == len(self.servers):
                             self.probe_cycle_time = 500
+                        if arpp.protosrc in self.macTable2:
+                            out_dpid, out_port = self.macTable2[arpp.protosrc]
+                            log.info("instal path S: %s %s" % (out_dpid, out_port))
+                            self._install_reactive_path(event, out_dpid, out_port, packet)
+
+                            log.info("sending to S entry in mactable: %s %s" % (out_dpid, out_port))
+                            self.switches[out_dpid].send_packet_data(out_port, event.data)
+                        
 
                 return
             # Not TCP and not ARP.  Don't know what to do with this.  Drop it.

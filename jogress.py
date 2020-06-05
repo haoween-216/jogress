@@ -298,7 +298,10 @@ class HederaController(object):
         if isinstance(packet.next, ipv4):
             ip = packet.next
             hash_input[0] = ip.srcip.toUnsigned()
-            hash_input[1] = ip.dstip.toUnsigned()
+            if ip.dstip == self.service_ip:
+                hash_input[1] = self.selected_server.toUnsigned()
+            else:
+                hash_input[1] = ip.dstip.toUnsigned()
             hash_input[2] = ip.protocol
             if isinstance(ip.next, tcp) or isinstance(ip.next, udp):
                 l4 = ip.next
@@ -349,13 +352,21 @@ class HederaController(object):
             ip = packet.next
             in_name = self.t.id_gen(dpid=event.dpid).name_str()
             out_name = self.t.id_gen(dpid=out_dpid).name_str()
-            flow_key = self._flow_key(ip.srcip, ip.dstip)
+            if ip.dstip == self.service_ip:
+                log.info("pake server : %s -> %s" % (ip.dstip, self.selected_server))
+                flow_key = self._flow_key(ip.srcip, self.selected_server)
+            else:
+                flow_key = self._flow_key(ip.srcip, ip.dstip)
             path_key = self._path_key(in_name, out_name)
             route = None
 
             if path_key in self.paths:
                 self.flows[flow_key] = -1
-                flow_demand = self._get_flow_demand(ip.dstip)
+                if ip.dstip == self.service_ip:
+                    log.info("pake server 2")
+                    flow_demand = self._get_flow_demand(self.selected_server)
+                else:
+                    flow_demand = self._get_flow_demand(ip.dstip)
                 route = self._global_first_fit(flow_key, path_key, flow_demand, packet)
             else:
                 hash_ = self._ecmp_hash(packet)

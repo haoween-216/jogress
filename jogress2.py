@@ -66,13 +66,18 @@ class Switch(object):
         msg.actions.append(of.ofp_action_output(port=outport))
         self.connection.send(msg)
 
-    def send_packet_data2(self, outport, server_src, mac_src, server_dst, mac_dst, data=None):
+    def send_packet_data2(self, outport, server_src, mac_src, data=None):
         msg = of.ofp_packet_out(in_port=of.OFPP_NONE, data=data)
+        msg.actions.append(of.ofp_action_nw_addr.set_src(server_src))
+        msg.actions.append(of.ofp_action_dl_addr.set_src(mac_src))
         msg.actions.append(of.ofp_action_output(port=outport))
-        # msg.actions.append(of.ofp_action_nw_addr.set_dst(server_dst))
-        # msg.actions.append(of.ofp_action_dl_addr.set_dst(mac_dst))
-        # msg.actions.append(of.ofp_action_nw_addr.set_src(server_src))
-        # msg.actions.append(of.ofp_action_dl_addr.set_src(mac_src))
+        self.connection.send(msg)
+
+    def send_packet_data3(self, outport, server_dst, mac_dst, data=None):
+        msg = of.ofp_packet_out(in_port=of.OFPP_NONE, data=data)
+        msg.actions.append(of.ofp_action_nw_addr.set_dst(server_dst))
+        msg.actions.append(of.ofp_action_dl_addr.set_dst(mac_dst))
+        msg.actions.append(of.ofp_action_output(port=outport))
         self.connection.send(msg)
 
     def send_packet_bufid(self, outport, buffer_id=None):
@@ -197,7 +202,7 @@ class HederaController(object):
         self.flows = {}
         self.link_usage = {}
         self.last_server = 0
-        
+
         self.service_ip = IPAddr(service_ip)
         self.servers = [IPAddr(a) for a in servers]
         self.live_servers = {}  # IP -> MAC,port
@@ -446,7 +451,7 @@ class HederaController(object):
                 self._install_reactive_path(event, out_dpid, out_port, packet)
 
                 log.info("sending to S entry in mactable: %s %s" % (out_dpid, out_port))
-                self.switches[out_dpid].send_packet_data(out_port, event.data)
+                self.switches[out_dpid].send_packet_data2(out_port, self.service_ip, self.mac, event.data)
 
         elif ipp.dstip == self.service_ip:
             log.info("packetin dri client :%s" % packet)
@@ -485,7 +490,7 @@ class HederaController(object):
                 self._install_reactive_path(event, out_dpid, out_port, packet)
 
                 log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
-                self.switches[out_dpid].send_packet_data(out_port, event.data)
+                self.switches[out_dpid].send_packet_data3(out_port, server, mac, event.data)
                 # self.switches[out_dpid].send_packet_data2(out_port, packet.next.srcip, packet.src, entry.server, mac, event.data)
         else:
             self._flood(event)

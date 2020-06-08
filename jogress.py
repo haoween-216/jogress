@@ -348,6 +348,8 @@ class HederaController(object):
 
     def _install_reactive_path(self, event, out_dpid, final_out_port, packet):
         "Install entries on route between two switches."
+        inport = event.port
+        mac, port_s = self.live_servers[self.selected_server]
         if isinstance(packet.next, ipv4):
             ip = packet.next
             in_name = self.t.id_gen(dpid=event.dpid).name_str()
@@ -373,7 +375,7 @@ class HederaController(object):
                 route = self.r.get_route(in_name, out_name, hash_, False)
 
             log.info("route: %s" % route)
-            match = of.ofp_match.from_packet(packet)
+            match = of.ofp_match.from_packet(packet, inport)
             for i, node in enumerate(route):
                 node_dpid = self.t.id_gen(name = node).dpid
                 if i < len(route) - 1:
@@ -382,7 +384,7 @@ class HederaController(object):
                 else:
                     out_port = final_out_port
                 if ip.dstip == self.service_ip:
-                    mac, port_s = self.live_servers[self.selected_server]
+
                     log.info("path to %s , to %s server" % (node_dpid, mac))
                     self.switches[node_dpid].install2(out_port, self.selected_server, mac, match,
                                                       idle_timeout=IDLE_TIMEOUT)
@@ -486,7 +488,7 @@ class HederaController(object):
                 self.con.send(msg)
             return None
 
-        self.macTable[packet.src] = (dpid, in_port)
+        # self.macTable[packet.src] = (dpid, in_port)
         # log.info("mactable: %s" % self.macTable)
         tcpp = packet.find('tcp')
         if not tcpp:
@@ -505,16 +507,9 @@ class HederaController(object):
                             # Ooh, new server.
                             self.live_servers[arpp.protosrc] = arpp.hwsrc, in_port
                             self.log.info("Server %s port %s up" % (arpp.hwsrc, in_port))
-                        if len(self.live_servers) == len(self.servers):
-                            self.probe_cycle_time = 500
-                        if arpp.protosrc in self.macTable2:
-                            out_dpid, out_port = self.macTable2[arpp.protosrc]
-                            log.info("instal path S: %s %s" % (out_dpid, out_port))
-                            self._install_reactive_path(event, out_dpid, out_port, packet)
+                        # if len(self.live_servers) == len(self.servers):
+                            # self.probe_cycle_time = 500
 
-                            log.info("sending to S entry in mactable: %s %s" % (out_dpid, out_port))
-                            self.switches[out_dpid].send_packet_data(out_port, event.data)
-                        
 
                 return
             # Not TCP and not ARP.  Don't know what to do with this.  Drop it.

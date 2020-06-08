@@ -375,7 +375,7 @@ class HederaController(object):
                 route = self.r.get_route(in_name, out_name, hash_, False)
 
             log.info("route: %s" % route)
-            match = of.ofp_match.from_packet(packet, inport)
+            
             for i, node in enumerate(route):
                 node_dpid = self.t.id_gen(name = node).dpid
                 if i < len(route) - 1:
@@ -386,9 +386,11 @@ class HederaController(object):
                 if ip.dstip == self.service_ip:
 
                     log.info("path to %s , to %s server" % (node_dpid, mac))
+                    match = of.ofp_match.from_packet(packet, next_in_port)
                     self.switches[node_dpid].install2(out_port, self.selected_server, mac, match,
                                                       idle_timeout=IDLE_TIMEOUT)
                 else:
+                    match = of.ofp_match.from_packet(packet, next_in_port)
                     self.switches[node_dpid].install(out_port, self.service_ip, self.mac, match,
                                                      idle_timeout=IDLE_TIMEOUT)
 

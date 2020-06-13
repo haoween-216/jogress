@@ -378,7 +378,7 @@ class HederaController(object):
 
             for i, node in enumerate(route):
                 node_dpid = self.t.id_gen(name = node).dpid
-                if i < len(route) - 1:                
+                if i < len(route) - 1:
                     next_node = route[i + 1]
                     out_port, next_in_port = self.t.port(node, next_node)
                     if i == 0:
@@ -498,28 +498,24 @@ class HederaController(object):
 
         # self.macTable[packet.src] = (dpid, in_port)
         # log.info("mactable: %s" % self.macTable)
-        tcpp = packet.find('tcp')
-        if not tcpp:
-            arpp = packet.find('arp')
-            if arpp:
-                # Handle replies to our server-liveness probes
-                if arpp.opcode == arpp.REPLY:
-                    # log.info("packetin arp : %s" %packet)
-                    if arpp.protosrc in self.outstanding_probes:
-                        # A server is (still?) up; cool.
-                        del self.outstanding_probes[arpp.protosrc]
-                        if (self.live_servers.get(arpp.protosrc, (None, None))
-                                == (arpp.hwsrc, in_port)):
-                            pass
-                        else:
-                            # Ooh, new server.
-                            self.live_servers[arpp.protosrc] = arpp.hwsrc, in_port
-                            self.log.info("Server %s port %s up" % (arpp.hwsrc, in_port))
-                        # if len(self.live_servers) == len(self.servers):
-                            # self.probe_cycle_time = 500
+        arpp = packet.find('arp')
+        if arpp.opcode == arpp.REPLY:
+            # log.info("packetin arp : %s" %packet)
+            if arpp.protosrc in self.outstanding_probes:
+                # A server is (still?) up; cool.
+                del self.outstanding_probes[arpp.protosrc]
+                if (self.live_servers.get(arpp.protosrc, (None, None))
+                        == (arpp.hwsrc, in_port)):
+                    pass
+                else:
+                    # Ooh, new server.
+                    self.live_servers[arpp.protosrc] = arpp.hwsrc, in_port
+                    self.log.info("Server %s port %s up" % (arpp.hwsrc, in_port))
+                # if len(self.live_servers) == len(self.servers):
+                # self.probe_cycle_time = 500
 
-
-                return
+        return
+                
             # Not TCP and not ARP.  Don't know what to do with this.  Drop it.
 
         ipp = packet.find('ipv4')

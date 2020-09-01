@@ -404,10 +404,18 @@ class HederaController(object):
                 if ip.dstip == self.service_ip:
                     log.info("path to %s , to %s server" % (node_dpid, mac))
                     match = of.ofp_match.from_packet(packet, in_port)
-                    self.switches[node_dpid].install(out_port, match, idle_timeout=IDLE_TIMEOUT)
+                    if i == len(route) -1 :
+                        self.switches[out_dpid].install3(out_port, self.selected_server, mac, match,
+                                                         idle_timeout=IDLE_TIMEOUT)
+                    else:
+                        self.switches[node_dpid].install(out_port, match, idle_timeout=IDLE_TIMEOUT)
                 else:
                     match = of.ofp_match.from_packet(packet, in_port)
-                    self.switches[node_dpid].install(out_port, match, idle_timeout=IDLE_TIMEOUT)
+                    if i == len(route) - 1:
+                        self.switches[out_dpid].install2(out_port, self.service_ip, self.mac, match,
+                                                             idle_timeout=IDLE_TIMEOUT)
+                    else:
+                        self.switches[node_dpid].install(out_port, match, idle_timeout=IDLE_TIMEOUT)
     def _eth_to_int(self, eth):
         return sum(([ord(x) * 2 ** ((5 - i) * 8) for i, x in enumerate(eth.raw)]))
 

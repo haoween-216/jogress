@@ -543,6 +543,13 @@ class HederaController(object):
 
         if ipp.srcip in self.servers:
             log.info("packetin dri server :%s" % packet)
+            key = ipp.srcip, ipp.dstip, tcpp.srcport, tcpp.dstport
+            entry = self.memory.get(key)
+            if entry is None:
+                self.log.debug("NO client for %s", key)
+                return drop()
+            entry.refresh()
+            # mac, port = self.live_servers[entry.server]
             if packet.dst in self.macTable2:
                 out_dpid, out_port = self.macTable2[packet.dst]
                 log.info("instal path S: %s %s" % (out_dpid, out_port))

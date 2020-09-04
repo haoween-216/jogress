@@ -86,8 +86,19 @@ class Switch(object):
         msg.buffer_id = buffer_id
         self.connection.send(msg)
 
-    def install(self, port, server_src, mac_src, match, buf=None, idle_timeout=0, hard_timeout=0,
+    def install(self, port, match, buf=None, idle_timeout=0, hard_timeout=0,
                 priority=of.OFP_DEFAULT_PRIORITY):
+        msg = of.ofp_flow_mod()
+        msg.match = match
+        msg.idle_timeout = idle_timeout
+        msg.hard_timeout = hard_timeout
+        msg.priority = priority
+        msg.actions.append(of.ofp_action_output(port=port))
+        msg.buffer_id = buf
+        self.connection.send(msg)
+
+    def install2(self, port, server_src, mac_src, match, buf=None, idle_timeout=0, hard_timeout=0,
+                 priority=of.OFP_DEFAULT_PRIORITY):
         msg = of.ofp_flow_mod()
         msg.match = match
         msg.idle_timeout = idle_timeout
@@ -99,8 +110,8 @@ class Switch(object):
         msg.buffer_id = buf
         self.connection.send(msg)
 
-    def install2(self, port, server_dst, mac_dst, match, buf=None, idle_timeout=0, hard_timeout=0,
-                priority=of.OFP_DEFAULT_PRIORITY):
+    def install3(self, port, server_dst, mac_dst, match, buf=None, idle_timeout=0, hard_timeout=0,
+                 priority=of.OFP_DEFAULT_PRIORITY):
         msg = of.ofp_flow_mod()
         msg.match = match
         msg.idle_timeout = idle_timeout
@@ -330,25 +341,44 @@ class HederaController(object):
 
     def _install_reactive_path(self, event, out_dpid, final_out_port, packet):
         "Install entries on route between two switches."
+        inport = event.port
+        mac, port_s = self.live_servers[self.selected_server]
+        ip = packet.next
         in_name = self.t.id_gen(dpid=event.dpid).name_str()
         out_name = self.t.id_gen(dpid=out_dpid).name_str()
         hash_ = self._ecmp_hash(packet)
         route = self.r.get_route(in_name, out_name, hash_, False)
         log.info("route: %s" % route)
-        match = of.ofp_match.from_packet(packet)
+        # match = of.ofp_match.from_packet(packet)
         for i, node in enumerate(route):
             node_dpid = self.t.id_gen(name=node).dpid
             if i < len(route) - 1:
                 next_node = route[i + 1]
                 out_port, next_in_port = self.t.port(node, next_node)
+                if i == 0:
+                    in_port = inport
+                else:
+                    prev_node = route[i - 1]
+                    in_port, next_in_port2 = self.t.port(node, prev_node)
             else:
+                prev_node = route[i - 1]
+                in_port, next_in_port2 = self.t.port(node, prev_node)
                 out_port = final_out_port
-            if packet.next.dstip == self.service_ip:
-                mac, port_s = self.live_servers[self.selected_server]
+            if ip.dstip == self.service_ip:
                 log.info("path to %s , to %s server" % (node_dpid, mac))
-                self.switches[node_dpid].install2(out_port, self.selected_server, mac, match, idle_timeout=IDLE_TIMEOUT)
+                match = of.ofp_match.from_packet(packet, in_port)
+                if i == len(route) - 1:
+                    self.switches[out_dpid].install3(out_port, self.selected_server, mac, match,
+                                                     idle_timeout=IDLE_TIMEOUT)
+                else:
+                    self.switches[node_dpid].install(out_port, match, idle_timeout=IDLE_TIMEOUT)
             else:
-                self.switches[node_dpid].install(out_port, self.service_ip, self.mac, match, idle_timeout=IDLE_TIMEOUT)
+                match = of.ofp_match.from_packet(packet, in_port)
+                if i == len(route) - 1:
+                    self.switches[out_dpid].install2(out_port, self.service_ip, self.mac, match,
+                                                     idle_timeout=IDLE_TIMEOUT)
+                else:
+                    self.switches[node_dpid].install(out_port, match, idle_timeout=IDLE_TIMEOUT)
 
     def _eth_to_int(self, eth):
         return sum(([ord(x) * 2 ** ((5 - i) * 8) for i, x in enumerate(eth.raw)]))
@@ -389,6 +419,33 @@ class HederaController(object):
                 self.switches[sw].send_packet_data(port, event.data)
                 #  buffer_id = None
 
+    def _flood2(self, event, server, mac, dpid, in_port):
+
+        # log.info("flood PacketIn to: %s" % packet)
+
+        t = self.t
+
+        # Broadcast to every output port except the input on the input switch.
+        # Hub behavior, baby!
+        for sw in self._raw_dpids(t.layer_nodes(t.LAYER_EDGE)):
+            # log.info("considering sw %s" % sw)
+            ports = []
+            sw_name = t.id_gen(dpid=sw).name_str()
+            for host in t.down_nodes(sw_name):
+                sw_port, host_port = t.port(sw_name, host)
+                if sw != dpid or (sw == dpid and in_port != sw_port):
+                    ports.append(sw_port)
+            # Send packet out each non-input host port
+            # TODO: send one packet only.
+            for port in ports:
+                log.info("sending to port %s on switch %s" % (port, sw))
+                # buffer_id = event.ofp.buffer_id
+                # if sw == dpid:
+                #  self.switches[sw].send_packet_bufid(port, event.ofp.buffer_id)
+                # else:
+                self.switches[sw].send_packet_data3(port, server, mac, event.data)
+                #  buffer_id = None
+
     def _pick_server(self, key, in_port):
         """
         Pick a server for a (hopefully) new connection
@@ -413,7 +470,7 @@ class HederaController(object):
                 self.con.send(msg)
             return None
         #log.info("mactable: %s" % self.macTable)
-        self.macTable[packet.src] = (dpid, in_port)
+        # self.macTable[packet.src] = (dpid, in_port)
         tcpp = packet.find('tcp')
         if not tcpp:
             arpp = packet.find('arp')
@@ -426,15 +483,12 @@ class HederaController(object):
                         del self.outstanding_probes[arpp.protosrc]
                         if (self.live_servers.get(arpp.protosrc, (None, None))
                                 == (arpp.hwsrc, in_port)):
-                            # loga, logb = self.live_servers[arpp.protosrc]
-                            # log.info("live server : %s %s", loga, logb)
-                            # log.info("hwsrc : %s", arpp.hwsrc)
-                            # Ah, nothing new here.
+
                             pass
                         else:
                             # Ooh, new server.
                             self.live_servers[arpp.protosrc] = arpp.hwsrc, in_port
-                            self.log.info("Server %s port %s up" % (arpp.hwsrc,in_port))
+                            self.log.info("Server %s port %s up" % (arpp.hwsrc, in_port))
 
                 return
             # Not TCP and not ARP.  Don't know what to do with this.  Drop it.
@@ -442,11 +496,19 @@ class HederaController(object):
         ipp = packet.find('ipv4')
         # Learn MAC address of the sender on every packet-in.
         # log.info("reacPacketIn: %s" % packet)
+        self.macTable[packet.src] = (dpid, in_port)
 
         if ipp.srcip in self.servers:
             log.info("packetin dri server :%s" % packet)
             if packet.dst in self.macTable2:
                 out_dpid, out_port = self.macTable2[packet.dst]
+                log.info("instal path S: %s %s" % (out_dpid, out_port))
+                self._install_reactive_path(event, out_dpid, out_port, packet)
+
+                log.info("sending to S entry in mactable: %s %s" % (out_dpid, out_port))
+                self.switches[out_dpid].send_packet_data2(out_port, self.service_ip, self.mac, event.data)
+            elif packet.dst in self.macTable:
+                out_dpid, out_port = self.macTable[packet.dst]
                 log.info("instal path S: %s %s" % (out_dpid, out_port))
                 self._install_reactive_path(event, out_dpid, out_port, packet)
 
@@ -491,7 +553,8 @@ class HederaController(object):
 
                 log.info("sending to entry in mactable: %s %s" % (out_dpid, out_port))
                 self.switches[out_dpid].send_packet_data3(out_port, server, mac, event.data)
-                # self.switches[out_dpid].send_packet_data2(out_port, packet.next.srcip, packet.src, entry.server, mac, event.data)
+            else:
+                self._flood2(event, server, mac, dpid_mac, port)
         else:
             self._flood(event)
 

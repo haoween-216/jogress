@@ -30,7 +30,7 @@ IDLE_TIMEOUT = 10
 CAPACITY = 1
 
 FLOW_IDLE_TIMEOUT = 10
-FLOW_MEMORY_TIMEOUT = 60
+FLOW_MEMORY_TIMEOUT = 60 * 5
 
 # Borrowed from pox/forwarding/l2_multi
 class Switch(object):
@@ -271,15 +271,11 @@ class HederaController(object):
                     del self.live_servers[ip]
 
         # Expire flow
-        memory = self.memory.copy()
-        self.memory.clear()
-        for key, val in memory.items():
-            ip = key[0]
-            if ip in self.live_servers and val.is_expired:
-                # Decrease total connection for that server
-                self.total_connection[ip] -= 1
-            if not val.is_expired:
-                self.memory[key] = val
+        c = len(self.memory)
+        self.memory = {k: v for k, v in self.memory.items()
+                       if not v.is_expired}
+        if len(self.memory) != c:
+            self.log.debug("Expired %i flows", c - len(self.memory))
 
     def _do_probe(self):
         """
@@ -492,13 +488,23 @@ class HederaController(object):
 
                 return
             # Not TCP and not ARP.  Don't know what to do with this.  Drop it.
-
+            return
         ipp = packet.find('ipv4')
         # Learn MAC address of the sender on every packet-in.
         # log.info("reacPacketIn: %s" % packet)
         self.macTable[packet.src] = (dpid, in_port)
 
         if ipp.srcip in self.servers:
+            key = ipp.srcip, ipp.dstip, tcpp.srcport, tcpp.dstport
+            entry = self.memory.get(key)
+            if entry is None:
+                # We either didn't install it, or we forgot about it.
+                self.log.debug("No client for %s", key)
+                return drop()
+
+                # Refresh time timeout and reinstall.
+            entry.refresh()
+
             log.info("packetin dri server :%s" % packet)
             if packet.dst in self.macTable2:
                 out_dpid, out_port = self.macTable2[packet.dst]
@@ -534,10 +540,7 @@ class HederaController(object):
                 self.memory[entry.key1] = entry
                 self.memory[entry.key2] = entry
                 self.selected_server = server
-                # Increase total connection for that server
-                if self.total_connection[server] == 0:
-                    self.macTable2[packet.src] = (dpid,in_port)
-                self.total_connection[server] += 1
+
             # Update timestamp
             entry.refresh()
 
